@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DINE.AI — Midnight Concierge</title>
+    <meta name="description" content="Luxury AI-powered restaurant concierge and booking platform" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <canvas id="noise-canvas"></canvas>
+    <div id="cursor"></div>
+    <div id="cursor-ring"></div>
+
+    <script>
+      (function setupNoise() {
+        const canvas = document.getElementById('noise-canvas');
+        if (!canvas) return;
+        canvas.style.position = 'fixed';
+        canvas.style.top = '0';
+        canvas.style.left = '0';
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+        canvas.style.pointerEvents = 'none';
+        canvas.style.opacity = '0.025';
+        canvas.style.zIndex = '9999';
+
+        const ctx = canvas.getContext('2d');
+        const patternCanvas = document.createElement('canvas');
+        const size = 256;
+        patternCanvas.width = size;
+        patternCanvas.height = size;
+        const patternCtx = patternCanvas.getContext('2d');
+        const imageData = patternCtx.createImageData(size, size);
+
+        for (let i = 0; i < imageData.data.length; i += 4) {
+          const v = Math.random() * 255;
+          imageData.data[i] = v;
+          imageData.data[i + 1] = v;
+          imageData.data[i + 2] = v;
+          imageData.data[i + 3] = 255;
+        }
+        patternCtx.putImageData(imageData, 0, 0);
+
+        const resize = () => {
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+          const pattern = ctx.createPattern(patternCanvas, 'repeat');
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = pattern;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        };
+
+        resize();
+        window.addEventListener('resize', resize);
+      })();
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

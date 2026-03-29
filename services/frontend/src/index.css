@@ -1,0 +1,182 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600&family=DM+Sans:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* Customer palette */
+  --bg:          #060507;
+  --bg-card:     #0f0c13;
+  --bg-elevated: #130f18;
+  --bg-deep:     #09070b;
+  --gold:        #c9a84c;
+  --gold-light:  #f0c96a;
+  --ember:       #e8602c;
+  --cream:       #f5ede0;
+  --muted:       #6b6570;
+  --faint:       #2a2530;
+  --border:      rgba(255,255,255,0.05);
+  --border-gold: rgba(201,168,76,0.25);
+
+  /* Owner palette */
+  --o-bg:        #08090b;
+  --o-surface:   #0c0b0f;
+  --o-card:      #161820;
+  --o-blue:      #5b8dd9;
+  --o-blue-dim:  rgba(91,141,217,0.1);
+  --o-green:     #48bb78;
+  --o-amber:     #f6ad55;
+  --o-red:       #fc8181;
+  --o-text:      #e2e8f0;
+  --o-muted:     #718096;
+  --o-border:    rgba(91,141,217,0.08);
+
+  --font-display: 'Cormorant', serif;
+  --font-body:    'DM Sans', sans-serif;
+  --font-mono:    'Fira Code', monospace;
+}
+
+html, body, #root {
+  height: 100%;
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--cream);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 3px; height: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 2px; }
+.owner-scroll::-webkit-scrollbar-thumb { background: var(--o-blue); }
+
+/* Selection */
+::selection { background: rgba(201,168,76,0.2); color: var(--cream); }
+
+/* Focus */
+*:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; border-radius: 4px; }
+.owner-area *:focus-visible { outline-color: var(--o-blue); }
+
+/* Inputs */
+input, textarea {
+  font-family: var(--font-body);
+  color: var(--cream);
+}
+input::placeholder, textarea::placeholder { color: var(--faint); }
+input:focus, textarea:focus { outline: none; }
+button { font-family: var(--font-body); cursor: pointer; }
+button:active { transform: scale(0.97) !important; }
+
+/* ── ANIMATIONS ── */
+@keyframes fadeUp    { from { opacity:0; transform:translateY(28px); } to { opacity:1; transform:translateY(0); } }
+@keyframes fadeIn    { from { opacity:0; } to { opacity:1; } }
+@keyframes pulse     { 0%,100% { opacity:1; } 50% { opacity:0.25; } }
+@keyframes glow      { 0%,100% { box-shadow:0 0 20px rgba(201,168,76,0.15); } 50% { box-shadow:0 0 50px rgba(201,168,76,0.45); } }
+@keyframes scrollL   { 0% { transform:translateX(0); } 100% { transform:translateX(-50%); } }
+@keyframes slideUp   { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+@keyframes shimmer   { 0% { background-position:-200% 0; } 100% { background-position:200% 0; } }
+
+/* ── UTILITY ── */
+.gold-text {
+  background: linear-gradient(135deg, var(--gold), var(--gold-light), var(--ember));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.animate-fadeup   { animation: fadeUp  0.6s cubic-bezier(0.22,1,0.36,1) both; }
+.animate-pulse    { animation: pulse   2.5s ease-in-out infinite; }
+.animate-glow     { animation: glow    3s   ease-in-out infinite; }
+.animate-scroll   { animation: scrollL 22s  linear infinite; }
+
+/* ── CARD 3D HOVER ── */
+.card-3d {
+  transition: transform 0.45s cubic-bezier(0.22,1,0.36,1),
+              box-shadow 0.45s ease;
+}
+.card-3d:hover {
+  transform: translateY(-10px) scale(1.015) !important;
+  box-shadow: 0 50px 100px rgba(0,0,0,0.95),
+              0 0 0 1px rgba(201,168,76,0.35) !important;
+}
+.card-3d .book-slide {
+  transform: translateY(20px);
+  opacity: 0;
+  transition: all 0.35s cubic-bezier(0.22,1,0.36,1);
+}
+.card-3d:hover .book-slide {
+  transform: translateY(0) !important;
+  opacity: 1 !important;
+}
+
+/* ── NAV LINKS ── */
+.nav-link {
+  position: relative;
+  padding-bottom: 4px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.2s;
+  font-family: var(--font-body);
+}
+.nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: -2px; left: 0;
+  width: 100%; height: 1px;
+  background: var(--gold);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+}
+.nav-link:hover, .nav-link.active { color: var(--cream); }
+.nav-link.active::after, .nav-link:hover::after { transform: scaleX(1); }
+.nav-link.owner-link.active  { color: var(--o-blue); }
+.nav-link.owner-link::after  { background: var(--o-blue); }
+
+/* ── SIDEBAR ── */
+.sidebar-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: none;
+  border-left: 2px solid transparent;
+  background: transparent;
+  color: var(--o-muted);
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+}
+.sidebar-item:hover  { background: rgba(91,141,217,0.06); color: #a0b8d8; }
+.sidebar-item.active { background: var(--o-blue-dim); color: var(--o-blue); border-left-color: var(--o-blue); }
+
+/* ── TABLE ROWS ── */
+.t-row { transition: background 0.15s; }
+.t-row:hover { background: rgba(255,255,255,0.018) !important; }
+
+/* ── MISC ── */
+.quick-btn:hover { background: rgba(91,141,217,0.06) !important; border-color: rgba(91,141,217,0.2) !important; }
+.slot-btn { transition: all 0.2s ease; }
+.slot-btn:hover { border-color: rgba(201,168,76,0.5) !important; color: var(--cream) !important; }
+.tab-link {
+  background: none; border: none;
+  padding: 14px 0;
+  font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+  cursor: pointer; font-family: var(--font-body); color: var(--muted);
+  border-bottom: 2px solid transparent;
+  margin-right: 28px;
+  transition: all 0.2s;
+}
+.tab-link.active { color: var(--cream); border-bottom-color: var(--gold); }
+.grain-overlay {
+  position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
+  opacity: 0.022;
+}

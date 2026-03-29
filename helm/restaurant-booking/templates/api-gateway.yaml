@@ -1,0 +1,124 @@
+{{- if .Values.apiGateway.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.apiGateway.name }}-config
+  namespace: {{ .Values.global.namespace }}
+data:
+  RATE_LIMIT_WINDOW_MS: "{{ .Values.apiGateway.env.RATE_LIMIT_WINDOW_MS }}"
+  RATE_LIMIT_MAX_REQUESTS: "{{ .Values.apiGateway.env.RATE_LIMIT_MAX_REQUESTS }}"
+  AI_SERVICE_URL: "http://{{ .Values.aiService.name }}:{{ .Values.aiService.service.port }}"
+  RESTAURANT_SERVICE_URL: "http://{{ .Values.restaurantService.name }}:{{ .Values.restaurantService.service.port }}"
+  BOOKING_SERVICE_URL: "http://{{ .Values.bookingService.name }}:{{ .Values.bookingService.service.port }}"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.apiGateway.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ .Values.apiGateway.name }}
+    version: {{ .Values.apiGateway.image.tag | quote }}
+spec:
+  replicas: {{ .Values.apiGateway.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.apiGateway.name }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.apiGateway.name }}
+        version: {{ .Values.apiGateway.image.tag | quote }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.apiGateway.service.port }}"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+      containers:
+      - name: {{ .Values.apiGateway.name }}
+        image: "{{ .Values.apiGateway.image.repository }}:{{ .Values.apiGateway.image.tag }}"
+        imagePullPolicy: {{ .Values.apiGateway.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.apiGateway.service.port }}
+          name: http
+        resources:
+          {{- toYaml .Values.apiGateway.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.apiGateway.service.port }}
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: {{ .Values.apiGateway.service.port }}
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        envFrom:
+        - configMapRef:
+            name: {{ .Values.apiGateway.name }}-config
+        env:
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: restaurant-secrets
+              key: JWT_SECRET
+        - name: API_GATEWAY_PORT
+          value: "{{ .Values.apiGateway.service.port }}"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.apiGateway.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ .Values.apiGateway.name }}
+spec:
+  type: {{ .Values.apiGateway.service.type }}
+  selector:
+    app: {{ .Values.apiGateway.name }}
+  ports:
+  - port: {{ .Values.apiGateway.service.port }}
+    targetPort: {{ .Values.apiGateway.service.port }}
+    {{- if eq .Values.apiGateway.service.type "NodePort" }}
+    nodePort: {{ .Values.apiGateway.service.nodePort }}
+    {{- end }}
+    name: http
+---
+{{- if .Values.apiGateway.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.apiGateway.name }}-hpa
+  namespace: {{ .Values.global.namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.apiGateway.name }}
+  minReplicas: {{ .Values.apiGateway.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.apiGateway.autoscaling.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.apiGateway.autoscaling.targetCPUUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.apiGateway.autoscaling.targetMemoryUtilizationPercentage }}
+{{- end }}
+{{- end }}

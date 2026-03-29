@@ -1,0 +1,108 @@
+{{- if .Values.restaurantService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.restaurantService.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ .Values.restaurantService.name }}
+    version: {{ .Values.restaurantService.image.tag | quote }}
+spec:
+  replicas: {{ .Values.restaurantService.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.restaurantService.name }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.restaurantService.name }}
+        version: {{ .Values.restaurantService.image.tag | quote }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.restaurantService.service.port }}"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+      containers:
+      - name: {{ .Values.restaurantService.name }}
+        image: "{{ .Values.restaurantService.image.repository }}:{{ .Values.restaurantService.image.tag }}"
+        imagePullPolicy: {{ .Values.restaurantService.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.restaurantService.service.port }}
+          name: http
+        resources:
+          {{- toYaml .Values.restaurantService.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.restaurantService.service.port }}
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: {{ .Values.restaurantService.service.port }}
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        env:
+        - name: RESTAURANT_SERVICE_PORT
+          value: "{{ .Values.restaurantService.service.port }}"
+        - name: DATABASE_URL
+          value: {{ include "restaurant-booking.postgresUrl" . | quote }}
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: restaurant-secrets
+              key: POSTGRES_PASSWORD
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.restaurantService.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ .Values.restaurantService.name }}
+spec:
+  type: {{ .Values.restaurantService.service.type }}
+  selector:
+    app: {{ .Values.restaurantService.name }}
+  ports:
+  - port: {{ .Values.restaurantService.service.port }}
+    targetPort: {{ .Values.restaurantService.service.port }}
+    name: http
+---
+{{- if .Values.restaurantService.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.restaurantService.name }}-hpa
+  namespace: {{ .Values.global.namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.restaurantService.name }}
+  minReplicas: {{ .Values.restaurantService.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.restaurantService.autoscaling.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.restaurantService.autoscaling.targetCPUUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.restaurantService.autoscaling.targetMemoryUtilizationPercentage }}
+{{- end }}
+{{- end }}

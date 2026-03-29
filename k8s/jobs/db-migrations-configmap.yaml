@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-migrations
+  namespace: restaurant-system
+data:
+  V1__initial_schema.sql: |
+    -- Enable UUID generation
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+    -- ──────────────────────────────────────────────────────────────────────────
+    -- restaurants
+    -- ──────────────────────────────────────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS restaurants (
+        id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        name        VARCHAR(255) NOT NULL,
+        address     TEXT         NOT NULL,
+        cuisine     VARCHAR(100) NOT NULL,
+        capacity    INTEGER      NOT NULL CHECK (capacity > 0),
+        created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    );
+
+    -- ──────────────────────────────────────────────────────────────────────────
+    -- bookings
+    -- ──────────────────────────────────────────────────────────────────────────
+    CREATE TYPE booking_status AS ENUM ('confirmed', 'cancelled', 'waitlisted');
+
+    CREATE TABLE IF NOT EXISTS bookings (
+        id               UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
+        restaurant_id    UUID           NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+        guest_name       VARCHAR(255)   NOT NULL,
+        guest_email      VARCHAR(320)   NOT NULL,
+        party_size       INTEGER        NOT NULL CHECK (party_size > 0),
+        booking_date     DATE           NOT NULL,
+        booking_time     TIME           NOT NULL,
+        status           booking_status NOT NULL DEFAULT 'confirmed',
+        occasion         VARCHAR(100),
+        special_requests TEXT,
+        created_at       TIMESTAMPTZ    NOT NULL DEFAULT NOW()
+    );
+
+    -- ──────────────────────────────────────────────────────────────────────────
+    -- waitlist
+    -- ──────────────────────────────────────────────────────────────────────────
+    CREATE TYPE waitlist_status AS ENUM ('waiting', 'notified', 'expired', 'converted');
+
+    CREATE TABLE IF NOT EXISTS waitlist (
+        id             UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
+        restaurant_id  UUID            NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+        guest_name     VARCHAR(255)    NOT NULL,
+        guest_email    VARCHAR(320)    NOT NULL,
+        party_size     INTEGER         NOT NULL CHECK (party_size > 0),
+        requested_date DATE            NOT NULL,
+        requested_time TIME            NOT NULL,
+        status         waitlist_status NOT NULL DEFAULT 'waiting',
+        created_at     TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+    );
+
+    -- ──────────────────────────────────────────────────────────────────────────
+    -- Indexes
+    -- ──────────────────────────────────────────────────────────────────────────
+    CREATE INDEX IF NOT EXISTS idx_bookings_restaurant_date
+        ON bookings (restaurant_id, booking_date);
+
+    CREATE INDEX IF NOT EXISTS idx_bookings_guest_email
+        ON bookings (guest_email);
+
+    CREATE INDEX IF NOT EXISTS idx_waitlist_restaurant_date
+        ON waitlist (restaurant_id, requested_date);
+
+    CREATE INDEX IF NOT EXISTS idx_bookings_status
+        ON bookings (status);
+
+  V2__seed_restaurants.sql: |
+    -- Sample seed data (dev/staging only — guard with env flag in prod)
+    INSERT INTO restaurants (name, address, cuisine, capacity) VALUES
+      ('La Bella Italia',   '12 Rosewood Lane, Milan District',   'Italian',  80),
+      ('Sakura Garden',     '5 Cherry Blossom Ave, East Quarter',  'Japanese', 60),
+      ('Le Petit Bistro',   '33 Rue de la Paix, French Quarter',  'French',   45),
+      ('Spice Route',        '88 Curry Street, Spice Market',      'Indian',   70),
+      ('The Grill House',   '1 Smoke Ring Blvd, West End',        'American', 100)
+    ON CONFLICT DO NOTHING;

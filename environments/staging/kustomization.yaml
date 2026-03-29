@@ -1,0 +1,44 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../k8s
+namePrefix: ""
+nameSuffix: ""
+namespace: restaurant-system
+commonLabels:
+  environment: staging
+patches:
+  # Reduce replicas for cost savings in staging
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: booking-service
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: ai-service
+  # Reduce HPA min replicas in staging
+  - patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+    target:
+      kind: HorizontalPodAutoscaler
+      namespace: restaurant-system
+images:
+  - name: booking-service
+    newTag: staging
+  - name: ai-service
+    newTag: staging
+configMapGenerator:
+  - name: environment-config
+    literals:
+      - ENVIRONMENT=staging
+      - LOG_LEVEL=DEBUG
+      - OTEL_SAMPLING_RATIO=1.0

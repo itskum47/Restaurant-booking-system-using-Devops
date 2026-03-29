@@ -1,0 +1,199 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: restaurant-booking-alerts
+  namespace: restaurant-system
+  labels:
+    monitoring: "true"
+spec:
+  groups:
+    - name: application-alerts
+      interval: 30s
+      rules:
+        # 1. High Error Rate Alert
+        - alert: HighErrorRate
+          expr: |
+            (
+              sum(rate(http_requests_total{status=~"5..", namespace="restaurant-system"}[5m])) by (service)
+              /
+              sum(rate(http_requests_total{namespace="restaurant-system"}[5m])) by (service)
+            ) * 100 > 5
+          for: 5m
+          labels:
+            severity: critical
+            component: application
+          annotations:
+            summary: "High error rate detected in {{ $labels.service }}"
+            description: "Service {{ $labels.service }} has error rate of {{ $value | humanizePercentage }} (threshold: 5%)"
+            runbook_url: "https://docs.restaurant-booking.com/runbooks/high-error-rate"
+
+        # 2. High Latency Alert
+        - alert: HighLatency
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(http_request_duration_seconds_bucket{namespace="restaurant-system"}[5m])) by (service, le)
+            ) > 2
+          for: 5m
+          labels:
+            severity: warning
+            component: application
+          annotations:
+            summary: "High latency detected in {{ $labels.service }}"
+            description: "Service {{ $labels.service }} has P95 latency of {{ $value | humanizeDuration }} (threshold: 2s)"
+            runbook_url: "https://docs.restaurant-booking.com/runbooks/high-latency"
+
+        # 3. Pod Crash Looping Alert
+        - alert: PodCrashLooping
+          expr: |
+            rate(kube_pod_container_status_restarts_total{namespace="restaurant-system"}[15m]) > 0
+          for: 5m
+          labels:
+            severity: critical
+            component: infrastructure
+          annotations:
+            summary: "Pod {{ $labels.pod }} is crash looping"
+            description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has restarted {{ $value }} times in the last 15 minutes"
+            runbook_url: "https://docs.restaurant-booking.com/runbooks/pod-crash-looping"
+
+        # 4. AI Service Down Alert
+        - alert: AIServiceDown
+          expr: |
+            up{job="ai-service", namespace="restaurant-system"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            component: ai-service
+          annotations:
+            summary: "AI Service is down"
+            description: "Gemini AI Service has been down for more than 2 minutes"
+            runbook_url: "https://docs.restaurant-booking.com/runbooks/service-down"
+
+        # 5. High Memory Usage Alert
+        - alert: HighMemoryUsage
+          expr: |
+            (
+              sum(container_memory_working_set_bytes{namespace="restaurant-system", pod!=""}) by (pod)
+              /
+              sum(container_spec_memory_limit_bytes{namespace="restaurant-system", pod!=""}) by (pod)
+            ) * 100 > 90
+          for: 5m
+          labels:
+            severity: warning
+            component: infrastructure
+          annotations:
+            summary: "High memory usage in pod {{ $labels.pod }}"
+            description: "Pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of its memory limit"
+            runbook_url: "https://docs.restaurant-booking.com/runbooks/high-memory-usage"
+
+        # 6. Database Connections High Alert
+        - alert: DatabaseConnectionsHigh
+          expr: |
+            pg_stat_activity_count{namespace="restaurant-system"} > 80
+          for: 5m
+          labels:
+            severity: warning
+            component: database
+          annotations:
+            summary: "PostgreSQL connection count is high"
+            description: "PostgreSQL has {{ $value }} active connections (threshold: 80)"
+            runbook_url: "https://docs.restaurant-booking.com/runbooks/database-connections-high"
+
+        # 7. Gemini High Latency Alert
+        - alert: GeminiHighLatency
+          expr: |
+            histogram_quantile(0.95, rate(gemini_latency_seconds_bucket[5m])) > 3
+          for: 5m
+          labels:
+            severity: warning
+            component: gemini-api
+          annotations:
+            summary: "Gemini API latency is high"
+            description: "P95 Gemini response time is {{ $value | humanizeDuration }} (threshold: 3s). Consider model or rate limits."
+            runbook_url: "https://docs.restaurant-booking.com/runbooks/gemini-latency"
+
+        # 8. Gemini Request Error Rate Alert
+        - alert: GeminiHighErrorRate
+          expr: |
+            (
+              sum(rate(gemini_requests_total{status="error"}[5m]))
+              /
+              sum(rate(gemini_requests_total[5m]))
+            ) * 100 > 10
+          for: 5m
+          labels:
+            severity: warning
+            component: gemini-api
+          annotations:
+            summary: "Gemini API error rate is high"
+            description: "Error rate is {{ $value | humanizePercentage }} (threshold: 10%). Check API key and quotas."
+            runbook_url: "https://docs.restaurant-booking.com/runbooks/gemini-errors"
+
+        # 9. High Token Usage Alert
+        - alert: HighGeminiTokenUsage
+          expr: |
+            rate(gemini_tokens_total[1h]) > 100000
+          for: 5m
+          labels:
+            severity: warning
+            component: gemini-api
+          annotations:
+            summary: "High Gemini token consumption detected"
+            description: "Token usage is {{ $value }} tokens/hour. May indicate quota exhaustion."
+            runbook_url: "https://docs.restaurant-booking.com/runbooks/gemini-tokens"
+        # 7. HPA Max Replicas Alert
+        - alert: HPAMaxReplicas
+          expr: |
+            kube_horizontalpodautoscaler_status_current_replicas{namespace="restaurant-system"}
+            >=
+            kube_horizontalpodautoscaler_spec_max_replicas{namespace="restaurant-system"}
+          for: 10m
+          labels:
+            severity: warning
+            component: infrastructure
+          annotations:
+            summary: "HPA {{ $labels.horizontalpodautoscaler }} has reached max replicas"
+            description: "HPA {{ $labels.horizontalpodautoscaler }} has been at max replicas ({{ $value }}) for 10 minutes. Consider increasing max replicas."
+            runbook_url: "https://docs.restaurant-booking.com/runbooks/hpa-max-replicas"
+
+    - name: booking-business-alerts
+      interval: 1m
+      rules:
+        # Booking Success Rate Alert
+        - alert: LowBookingSuccessRate
+          expr: |
+            (
+              sum(rate(bookings_created_total{namespace="restaurant-system"}[10m]))
+              /
+              (sum(rate(bookings_created_total{namespace="restaurant-system"}[10m])) + sum(rate(bookings_cancelled_total{namespace="restaurant-system"}[10m])))
+            ) * 100 < 80
+          for: 15m
+          labels:
+            severity: warning
+            component: business
+          annotations:
+            summary: "Low booking success rate detected"
+            description: "Booking success rate is {{ $value | humanizePercentage }} (threshold: 80%). Possible issues with booking flow."
+
+        # AI Inference Failures Alert
+        - alert: HighAIInferenceFailures
+          expr: |
+            sum(rate(ai_requests_total{status="error", namespace="restaurant-system"}[5m])) > 1
+          for: 5m
+          labels:
+            severity: warning
+            component: ai-service
+          annotations:
+            summary: "High AI inference failure rate"
+            description: "AI service is experiencing {{ $value }} errors per second. Check OpenAI API status or fallback logic."
+
+        # No Active Bookings Alert (Business Hours)
+        - alert: NoActiveBookingsDuringBusinessHours
+          expr: |
+            active_bookings_total{namespace="restaurant-system"} == 0 and hour() >= 11 and hour() <= 21
+          for: 30m
+          labels:
+            severity: info
+            component: business
+          annotations:
+            summary: "No active bookings during business hours"
+            description: "There are no active bookings for 30 minutes during business hours. This may indicate a service issue or low traffic."

@@ -1,0 +1,40 @@
+# cert-manager ClusterIssuer — Let's Encrypt (ACME HTTP-01)
+# Prerequisites:
+#   helm install cert-manager jetstack/cert-manager \
+#     --namespace cert-manager --create-namespace \
+#     --set installCRDs=true
+#
+# Apply this AFTER cert-manager pods are Running:
+#   kubectl apply -f k8s/cert-manager/cluster-issuer.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+# Production issuer (rate-limited; use staging first)
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: devops@example.com           # TODO: replace with your email
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+---
+# Staging issuer — use for testing (no rate limits)
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: devops@example.com           # TODO: replace with your email
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+    - http01:
+        ingress:
+          class: nginx

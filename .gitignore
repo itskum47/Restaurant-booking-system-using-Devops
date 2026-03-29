@@ -1,0 +1,26 @@
+# Environments
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+ENV/
+
+# OS / Tools
+.DS_Store
+.vscode/
+.idea/
+
+# Agents
+.agent/

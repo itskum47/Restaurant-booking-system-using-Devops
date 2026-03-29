@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mongodb-backup
+  namespace: restaurant-system
+spec:
+  schedule: "0 3 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: mongodb-backup
+            image: mongo:4.4
+            command:
+            - /bin/sh
+            - -c
+            - mongodump --uri="mongodb://admin:${MONGO_PASSWORD}@mongodb:27017" --archive=/tmp/backup.archive
+            env:
+            - name: MONGO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: restaurant-secrets
+                  key: MONGO_PASSWORD
+          restartPolicy: OnFailure

@@ -1,0 +1,68 @@
+# PodDisruptionBudgets — ensure minimum availability during node drains / upgrades
+# At least 1 replica of each critical service must remain Running.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-gateway-pdb
+  namespace: restaurant-system
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: api-gateway
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: booking-service-pdb
+  namespace: restaurant-system
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: booking-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: restaurant-service-pdb
+  namespace: restaurant-system
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: restaurant-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ai-service-pdb
+  namespace: restaurant-system
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: ai-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: notification-service-pdb
+  namespace: restaurant-system
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: notification-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend-pdb
+  namespace: restaurant-system
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: frontend

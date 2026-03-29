@@ -1,0 +1,14 @@
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: restaurant-pod-kill
+  namespace: restaurant-system
+spec:
+  engineState: "active"
+  appinfo:
+    appns: "restaurant-system"
+    applabel: "app=booking-service"
+    appkind: "deployment"
+  chaosServiceAccount: pod-kill-sa
+  experiments:
+    - name: pod-delete

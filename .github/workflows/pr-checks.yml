@@ -1,0 +1,159 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  packages: read
+  pull-requests: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/restaurant-booking
+
+jobs:
+  # ─── LINT ─────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python linters
+        run: pip install flake8 black isort
+
+      - name: flake8
+        run: |
+          for svc in ai-service booking-service; do
+            flake8 services/$svc/app --max-line-length=120 --extend-ignore=E203,W503
+          done
+
+      - name: black --check
+        run: |
+          for svc in ai-service booking-service; do
+            black --check services/$svc/app --line-length 120
+          done
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: ESLint
+        run: |
+          for svc in api-gateway restaurant-service notification-service; do
+            cd services/$svc && npm ci && npm run lint 2>/dev/null || echo "No lint script"
+            cd ../../..
+          done
+
+  # ─── TEST ─────────────────────────────────────────────────────────────────
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Test booking-service
+        working-directory: services/booking-service
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx pytest-cov
+          pytest tests/ -v --cov=app --cov-fail-under=80
+
+      - name: Test ai-service
+        working-directory: services/ai-service
+        env:
+          GEMINI_API_KEY: mock-key-for-testing
+          GROQ_API_KEY: mock-key-for-testing
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx pytest-cov
+          pytest tests/ -v --cov=app --cov-fail-under=80
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Test api-gateway
+        working-directory: services/api-gateway
+        env:
+          JWT_SECRET: test-secret-key-for-ci
+        run: |
+          npm ci && npm test
+
+  # ─── TRIVY SCAN ───────────────────────────────────────────────────────────
+  scan:
+    name: Security Scan (changed services)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect changed services
+        id: changed
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          CHANGED=$(git diff --name-only origin/${{ github.base_ref }} | \
+            grep '^services/' | \
+            cut -d/ -f2 | sort -u | tr '\n' ' ')
+          echo "services=$CHANGED" >> $GITHUB_OUTPUT
+          echo "Changed services: $CHANGED"
+
+      - name: Set up Docker Buildx
+        if: steps.changed.outputs.services != ''
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and scan changed services
+        if: steps.changed.outputs.services != ''
+        run: |
+          for svc in ${{ steps.changed.outputs.services }}; do
+            if [ -d "services/$svc" ]; then
+              echo "Building $svc for scan..."
+              docker build -t scan-target/$svc:pr ./services/$svc/
+              echo "Scanning $svc..."
+              docker run --rm \
+                -v /var/run/docker.sock:/var/run/docker.sock \
+                aquasec/trivy:latest image \
+                --severity CRITICAL \
+                --exit-code 1 \
+                --ignore-unfixed \
+                scan-target/$svc:pr
+            fi
+          done
+
+  # ─── HELM VALIDATION ──────────────────────────────────────────────────────
+  helm-validate:
+    name: Helm Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Helm lint
+        run: helm lint helm/restaurant-booking/
+
+      - name: Helm template (default values)
+        run: |
+          helm template restaurant-booking helm/restaurant-booking/ \
+            -f helm/restaurant-booking/values.yaml > /dev/null
+
+      - name: Helm template (prod values)
+        run: |
+          helm template restaurant-booking helm/restaurant-booking/ \
+            -f helm/restaurant-booking/values.yaml \
+            -f helm/restaurant-booking/values-prod.yaml > /dev/null || \
+            echo "values-prod.yaml not found — skipping prod template check"

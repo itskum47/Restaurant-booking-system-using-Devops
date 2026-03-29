@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: restaurant-system
+  labels:
+    app: restaurant-booking
+    monitoring: enabled
+    environment: production

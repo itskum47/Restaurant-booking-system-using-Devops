@@ -1,0 +1,256 @@
+# Default values for restaurant-booking-system
+# This is a YAML-formatted file.
+
+global:
+  namespace: restaurant-system
+  imageRegistry: ""
+  imagePullSecrets: []
+
+# PostgreSQL Configuration
+# Passwords are injected via ExternalSecrets — no hardcoded values here.
+postgresql:
+  enabled: true
+  auth:
+    username: admin
+    database: restaurant_db
+    existingSecret: restaurant-postgres-secret
+    secretKeys:
+      adminPasswordKey: POSTGRES_PASSWORD
+      userPasswordKey: POSTGRES_PASSWORD
+  primary:
+    persistence:
+      enabled: true
+      size: 5Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+# MongoDB Configuration
+# Passwords are injected via ExternalSecrets — no hardcoded values here.
+mongodb:
+  enabled: true
+  auth:
+    username: admin
+    database: booking_db
+    existingSecret: restaurant-mongo-secret
+    secretKeys:
+      rootPasswordKey: MONGO_PASSWORD
+      passwordKey: MONGO_PASSWORD
+  persistence:
+    enabled: true
+    size: 5Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+# Redis Configuration
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    existingSecret: restaurant-redis-secret
+    existingSecretPasswordKey: REDIS_PASSWORD
+  master:
+    persistence:
+      enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+# API Gateway Service
+apiGateway:
+  enabled: true
+  name: api-gateway
+  replicaCount: 2
+  image:
+    repository: restaurant-booking/api-gateway
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP          # Exposed via Ingress only
+    port: 3000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  # JWT_SECRET injected from ExternalSecret restaurant-jwt-secret
+  env:
+    RATE_LIMIT_WINDOW_MS: "60000"
+    RATE_LIMIT_MAX_REQUESTS: "100"
+
+# AI Service
+aiService:
+  enabled: true
+  name: ai-service
+  replicaCount: 2
+  image:
+    repository: restaurant-booking/ai-service
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8001
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  # GEMINI_API_KEY and GROQ_API_KEY injected from ExternalSecret restaurant-ai-keys
+  env:
+    OPENAI_MODEL: "llama3-8b-8192"
+    OPENAI_BASE_URL: "https://api.groq.com/openai/v1"
+
+# Restaurant Service
+restaurantService:
+  enabled: true
+  name: restaurant-service
+  replicaCount: 2
+  image:
+    repository: restaurant-booking/restaurant-service
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 3001
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+# Booking Service
+bookingService:
+  enabled: true
+  name: booking-service
+  replicaCount: 2
+  image:
+    repository: restaurant-booking/booking-service
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8002
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+# Notification Service
+notificationService:
+  enabled: true
+  name: notification-service
+  replicaCount: 2
+  image:
+    repository: restaurant-booking/notification-service
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 3003
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+# Frontend
+frontend:
+  enabled: true
+  name: frontend
+  replicaCount: 2
+  image:
+    repository: restaurant-booking/frontend
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP     # Exposed via Ingress only
+    port: 80
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+# Ingress Configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://restaurant-booking.example.com"
+  host: restaurant-booking.example.com    # TODO: change to your domain
+  tls:
+    enabled: true
+    secretName: restaurant-booking-tls
+
+# Monitoring
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+  grafana:
+    enabled: true

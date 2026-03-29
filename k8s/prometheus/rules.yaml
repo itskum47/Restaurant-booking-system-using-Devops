@@ -1,0 +1,192 @@
+# ServiceMonitor — Prometheus scrapes all restaurant-system pods on /metrics
+# Requires: prometheus-operator CRDs installed (kube-prometheus-stack recommended)
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: restaurant-system
+  namespace: monitoring
+  labels:
+    release: prometheus           # matches kube-prometheus-stack's serviceMonitorSelector
+spec:
+  namespaceSelector:
+    matchNames:
+    - restaurant-system
+  selector:
+    matchLabels:
+      monitor: "true"             # add label monitor=true to services you want scraped
+  endpoints:
+  - port: http                    # service port name
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: pod
+    - sourceLabels: [__meta_kubernetes_namespace]
+      targetLabel: namespace
+    - sourceLabels: [__meta_kubernetes_service_name]
+      targetLabel: service
+---
+# PrometheusRule — alerting rules for the restaurant booking system
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: restaurant-booking-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+spec:
+  groups:
+  - name: restaurant-booking.critical
+    interval: 30s
+    rules:
+    # Service availability
+    - alert: ServiceDown
+      expr: up{namespace="restaurant-system"} == 0
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Service {{ $labels.service }} is down"
+        description: "{{ $labels.pod }} has been down for >2 minutes"
+
+    # High error rate
+    - alert: HighErrorRate
+      expr: |
+        sum(rate(http_requests_total{namespace="restaurant-system",status=~"5.."}[5m]))
+        / sum(rate(http_requests_total{namespace="restaurant-system"}[5m])) > 0.05
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High 5xx error rate (>5%)"
+        description: "Error rate: {{ printf \"%.2f\" $value | humanizePercentage }}"
+
+    # Request latency
+    - alert: HighLatency
+      expr: |
+        histogram_quantile(0.95,
+          rate(http_request_duration_seconds_bucket{namespace="restaurant-system"}[5m])
+        ) > 2
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "P95 latency > 2s for {{ $labels.service }}"
+        description: "P95 latency: {{ $value | humanizeDuration }}"
+
+    # Pod restarts
+    - alert: PodRestarting
+      expr: |
+        increase(kube_pod_container_status_restarts_total{namespace="restaurant-system"}[30m]) > 3
+      for: 0m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Pod {{ $labels.pod }} restarting"
+        description: "{{ $value }} restarts in the last 30 minutes"
+
+  - name: restaurant-booking.capacity
+    rules:
+    # Memory pressure
+    - alert: HighMemoryUsage
+      expr: |
+        container_memory_usage_bytes{namespace="restaurant-system"}
+        / container_spec_memory_limit_bytes{namespace="restaurant-system"} > 0.85
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Container {{ $labels.container }} memory > 85%"
+
+    # CPU throttling
+    - alert: CPUThrottling
+      expr: |
+        rate(container_cpu_cfs_throttled_seconds_total{namespace="restaurant-system"}[5m])
+        / rate(container_cpu_cfs_periods_total{namespace="restaurant-system"}[5m]) > 0.5
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "CPU throttled > 50% for {{ $labels.container }}"
+
+---
+# Recording rules for dashboards and fast alert evaluation
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: restaurant-booking-recording
+  namespace: monitoring
+  labels:
+    release: prometheus
+spec:
+  groups:
+  - name: restaurant-booking.recordings
+    interval: 30s
+    rules:
+    # Request rate per service (5m window)
+    - record: job:http_requests_total:rate5m
+      expr: |
+        sum by (service, namespace) (
+          rate(http_requests_total{namespace="restaurant-system"}[5m])
+        )
+
+    # Error ratio per service (5m window)
+    - record: job:http_error_rate:ratio5m
+      expr: |
+        sum by (service, namespace) (
+          rate(http_requests_total{namespace="restaurant-system", status=~"5.."}[5m])
+        )
+        /
+        sum by (service, namespace) (
+          rate(http_requests_total{namespace="restaurant-system"}[5m])
+        )
+
+    # P95 latency per service
+    - record: job:http_request_duration_p95:5m
+      expr: |
+        histogram_quantile(0.95,
+          sum by (service, namespace, le) (
+            rate(http_request_duration_seconds_bucket{namespace="restaurant-system"}[5m])
+          )
+        )
+
+    # P99 latency per service
+    - record: job:http_request_duration_p99:5m
+      expr: |
+        histogram_quantile(0.99,
+          sum by (service, namespace, le) (
+            rate(http_request_duration_seconds_bucket{namespace="restaurant-system"}[5m])
+          )
+        )
+
+    # Ready pod count per deployment
+    - record: job:kube_deployment_ready_pods:sum
+      expr: |
+        sum by (deployment, namespace) (
+          kube_deployment_status_replicas_ready{namespace="restaurant-system"}
+        )
+
+    # Booking creation rate (5m)
+    - record: job:booking_creations:rate5m
+      expr: |
+        sum(rate(bookings_created_total{namespace="restaurant-system"}[5m]))
+
+    # AI service NLP parse rate (5m)
+    - record: job:ai_nlp_parses:rate5m
+      expr: |
+        sum by (status) (
+          rate(nlp_parse_requests_total{namespace="restaurant-system"}[5m])
+        )
+
+    # SLO: booking-service availability (30d window)
+    - record: job:booking_service:availability30d
+      expr: |
+        1 - (
+          sum(increase(http_requests_total{namespace="restaurant-system",
+              service="booking-service", status=~"5.."}[30d]))
+          /
+          sum(increase(http_requests_total{namespace="restaurant-system",
+              service="booking-service"}[30d]))
+        )

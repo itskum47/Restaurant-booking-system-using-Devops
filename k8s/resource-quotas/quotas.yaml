@@ -1,0 +1,58 @@
+# ResourceQuota — limits total resource consumption in restaurant-system
+# This prevents runaway workloads from exhausting cluster resources.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: restaurant-system-quota
+  namespace: restaurant-system
+spec:
+  hard:
+    # Compute
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi
+    # Pods
+    pods: "50"
+    # Services
+    services: "20"
+    services.loadbalancers: "2"
+    services.nodeports: "0"          # NodePorts disabled in PROD
+    # Storage
+    persistentvolumeclaims: "10"
+    requests.storage: 100Gi
+    # Config
+    configmaps: "30"
+    secrets: "30"
+---
+# LimitRange — enforces default resource requests/limits on every container
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: restaurant-system-limits
+  namespace: restaurant-system
+spec:
+  limits:
+  - type: Container
+    default:
+      cpu: "500m"
+      memory: "512Mi"
+    defaultRequest:
+      cpu: "100m"
+      memory: "128Mi"
+    max:
+      cpu: "2"
+      memory: "2Gi"
+    min:
+      cpu: "50m"
+      memory: "64Mi"
+  - type: Pod
+    max:
+      cpu: "4"
+      memory: "4Gi"
+  - type: PersistentVolumeClaim
+    max:
+      storage: 20Gi
+    min:
+      storage: 1Gi

@@ -1,0 +1,145 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "Restaurant Booking System — Service Overview",
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [
+        {
+          "expr": "sum by (service) (rate(http_requests_total{namespace=\"restaurant-system\"}[5m]))",
+          "legendFormat": "{{service}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Error Rate (%)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [
+        {
+          "expr": "sum by (service) (rate(http_requests_total{namespace=\"restaurant-system\",status=~\"5..\"}[5m])) / sum by (service) (rate(http_requests_total{namespace=\"restaurant-system\"}[5m])) * 100",
+          "legendFormat": "{{service}} 5xx %"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "P50 / P95 / P99 Latency (s)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{namespace=\"restaurant-system\"}[5m]))",
+          "legendFormat": "P50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{namespace=\"restaurant-system\"}[5m]))",
+          "legendFormat": "P95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{namespace=\"restaurant-system\"}[5m]))",
+          "legendFormat": "P99"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Pod Memory Usage",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "targets": [
+        {
+          "expr": "sum by (pod) (container_memory_usage_bytes{namespace=\"restaurant-system\"})",
+          "legendFormat": "{{pod}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "CPU Usage (cores)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "targets": [
+        {
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"restaurant-system\"}[5m]))",
+          "legendFormat": "{{pod}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Active Bookings (Total)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 16},
+      "targets": [
+        {
+          "expr": "booking_service_active_bookings_total",
+          "legendFormat": "Active Bookings"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Booking Revenue (last 24h)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 16},
+      "targets": [
+        {
+          "expr": "sum(increase(booking_service_revenue_total[24h]))",
+          "legendFormat": "Revenue $"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "AI Recommendation Latency (P95)",
+      "type": "gauge",
+      "gridPos": {"h": 4, "w": 12, "x": 12, "y": 20},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": 0},
+              {"color": "yellow", "value": 2},
+              {"color": "red", "value": 5}
+            ]
+          },
+          "unit": "s",
+          "max": 10
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(ai_service_recommendation_duration_seconds_bucket[5m]))",
+          "legendFormat": "AI P95 Latency"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 37,
+  "tags": ["restaurant-booking", "microservices"],
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "type": "query",
+        "query": "label_values(kube_pod_info, namespace)",
+        "current": {"text": "restaurant-system", "value": "restaurant-system"}
+      }
+    ]
+  },
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "title": "Restaurant Booking System",
+  "uid": "restaurant-booking-overview",
+  "version": 1
+}

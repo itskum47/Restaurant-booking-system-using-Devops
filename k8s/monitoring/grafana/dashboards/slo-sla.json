@@ -1,0 +1,141 @@
+{
+  "uid": "slo-sla",
+  "title": "SLO / SLA Tracking",
+  "tags": ["restaurant", "slo", "sla"],
+  "timezone": "browser",
+  "refresh": "1m",
+  "time": { "from": "now-30d", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Booking API Availability (30d)",
+      "description": "SLO target: 99.9% — error budget 43.8 min/month",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "targets": [{
+        "datasource": { "uid": "prometheus" },
+        "expr": "(1 - sum(rate(http_requests_total{job='booking-service',status=~'5..'}[30d])) / sum(rate(http_requests_total{job='booking-service'}[30d]))) * 100"
+      }],
+      "fieldConfig": {
+        "defaults": { "unit": "percent", "decimals": 3, "thresholds": { "steps": [
+          { "color": "red", "value": 0 },
+          { "color": "orange", "value": 99.0 },
+          { "color": "green", "value": 99.9 }
+        ]}}
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "AI Service Availability (30d)",
+      "description": "SLO target: 99.5%",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "targets": [{
+        "datasource": { "uid": "prometheus" },
+        "expr": "(1 - sum(rate(http_requests_total{job='ai-service',status=~'5..'}[30d])) / sum(rate(http_requests_total{job='ai-service'}[30d]))) * 100"
+      }],
+      "fieldConfig": {
+        "defaults": { "unit": "percent", "decimals": 3, "thresholds": { "steps": [
+          { "color": "red", "value": 0 },
+          { "color": "orange", "value": 98.0 },
+          { "color": "green", "value": 99.5 }
+        ]}}
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Booking API P95 Latency (7d avg)",
+      "description": "SLO target: < 500ms",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "targets": [{
+        "datasource": { "uid": "prometheus" },
+        "expr": "histogram_quantile(0.95, sum(rate(booking_processing_duration_seconds_bucket[7d])) by (le)) * 1000"
+      }],
+      "fieldConfig": {
+        "defaults": { "unit": "ms", "thresholds": { "steps": [
+          { "color": "green", "value": 0 },
+          { "color": "orange", "value": 400 },
+          { "color": "red", "value": 500 }
+        ]}}
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Error Budget Remaining (Booking API)",
+      "description": "Budget: 43.8 min/month (99.9% SLO)",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "targets": [{
+        "datasource": { "uid": "prometheus" },
+        "expr": "(0.001 - sum(rate(http_requests_total{job='booking-service',status=~'5..'}[30d])) / sum(rate(http_requests_total{job='booking-service'}[30d]))) * 30 * 24 * 60"
+      }],
+      "fieldConfig": {
+        "defaults": { "unit": "min", "decimals": 1, "thresholds": { "steps": [
+          { "color": "red", "value": -999 },
+          { "color": "orange", "value": 5 },
+          { "color": "green", "value": 15 }
+        ]}}
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Availability Over Time (rolling 1h window)",
+      "gridPos": { "x": 0, "y": 4, "w": 24, "h": 8 },
+      "targets": [
+        {
+          "datasource": { "uid": "prometheus" },
+          "expr": "(1 - sum(rate(http_requests_total{job='booking-service',status=~'5..'}[1h])) / sum(rate(http_requests_total{job='booking-service'}[1h]))) * 100",
+          "legendFormat": "Booking API"
+        },
+        {
+          "datasource": { "uid": "prometheus" },
+          "expr": "(1 - sum(rate(http_requests_total{job='ai-service',status=~'5..'}[1h])) / sum(rate(http_requests_total{job='ai-service'}[1h]))) * 100",
+          "legendFormat": "AI Service"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percent", "custom": { "drawStyle": "line", "fillOpacity": 10 }},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Booking API" },
+            "properties": [{ "id": "thresholds", "value": { "steps": [
+              { "color": "red", "value": 0 },
+              { "color": "green", "value": 99.9 }
+            ]}}]}
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "P95 Latency Trend (booking-service)",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "targets": [{
+        "datasource": { "uid": "prometheus" },
+        "expr": "histogram_quantile(0.95, sum(rate(booking_processing_duration_seconds_bucket[5m])) by (le)) * 1000",
+        "legendFormat": "p95 ms"
+      }],
+      "fieldConfig": {
+        "defaults": { "unit": "ms", "custom": {
+          "thresholdsStyle": { "mode": "area" }
+        }, "thresholds": { "steps": [
+          { "color": "green", "value": 0 },
+          { "color": "red", "value": 500 }
+        ]}}
+      }
+    },
+    {
+      "id": 7,
+      "type": "alertlist",
+      "title": "Active SLO Alerts",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "options": {
+        "groupMode": "default",
+        "maxItems": 20,
+        "sortOrder": 1,
+        "stateFilter": { "firing": true, "pending": true }
+      }
+    }
+  ]
+}

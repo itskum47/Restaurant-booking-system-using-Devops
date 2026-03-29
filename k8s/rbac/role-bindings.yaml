@@ -1,0 +1,85 @@
+# RoleBindings — bind each Role to its ServiceAccount
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: api-gateway-binding
+  namespace: restaurant-system
+subjects:
+- kind: ServiceAccount
+  name: api-gateway-sa
+  namespace: restaurant-system
+roleRef:
+  kind: Role
+  name: api-gateway-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ai-service-binding
+  namespace: restaurant-system
+subjects:
+- kind: ServiceAccount
+  name: ai-service-sa
+  namespace: restaurant-system
+roleRef:
+  kind: Role
+  name: ai-service-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: booking-service-binding
+  namespace: restaurant-system
+subjects:
+- kind: ServiceAccount
+  name: booking-service-sa
+  namespace: restaurant-system
+roleRef:
+  kind: Role
+  name: booking-service-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: restaurant-service-binding
+  namespace: restaurant-system
+subjects:
+- kind: ServiceAccount
+  name: restaurant-service-sa
+  namespace: restaurant-system
+roleRef:
+  kind: Role
+  name: restaurant-service-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: notification-service-binding
+  namespace: restaurant-system
+subjects:
+- kind: ServiceAccount
+  name: notification-service-sa
+  namespace: restaurant-system
+roleRef:
+  kind: Role
+  name: notification-service-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: frontend-binding
+  namespace: restaurant-system
+subjects:
+- kind: ServiceAccount
+  name: frontend-sa
+  namespace: restaurant-system
+roleRef:
+  kind: Role
+  name: frontend-role
+  apiGroup: rbac.authorization.k8s.io

@@ -1,0 +1,34 @@
+import os
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+from opentelemetry.instrumentation.redis import RedisInstrumentor
+
+
+def setup_tracing(app, service_name: str) -> None:
+    """Configure OpenTelemetry with OTLP/gRPC export to Grafana Tempo."""
+    resource = Resource.create({
+        "service.name": service_name,
+        "deployment.environment": os.getenv("ENVIRONMENT", "development"),
+    })
+
+    provider = TracerProvider(resource=resource)
+
+    otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://tempo:4317")
+    exporter = OTLPSpanExporter(
+        endpoint=otlp_endpoint,
+        insecure=True,
+    )
+    provider.add_span_processor(BatchSpanProcessor(exporter))
+    trace.set_tracer_provider(provider)
+
+    # Auto-instrument FastAPI (adds server span per request)
+    FastAPIInstrumentor.instrument_app(app)
+    # Auto-instrument SQLAlchemy (adds db.query spans)
+    SQLAlchemyInstrumentor().instrument()
+    # Auto-instrument Redis (adds redis.command spans)
+    RedisInstrumentor().instrument()

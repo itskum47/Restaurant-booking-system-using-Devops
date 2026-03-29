@@ -1,0 +1,110 @@
+{{- if .Values.bookingService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.bookingService.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ .Values.bookingService.name }}
+    version: {{ .Values.bookingService.image.tag | quote }}
+spec:
+  replicas: {{ .Values.bookingService.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.bookingService.name }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.bookingService.name }}
+        version: {{ .Values.bookingService.image.tag | quote }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.bookingService.service.port }}"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+      containers:
+      - name: {{ .Values.bookingService.name }}
+        image: "{{ .Values.bookingService.image.repository }}:{{ .Values.bookingService.image.tag }}"
+        imagePullPolicy: {{ .Values.bookingService.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.bookingService.service.port }}
+          name: http
+        resources:
+          {{- toYaml .Values.bookingService.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.bookingService.service.port }}
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: {{ .Values.bookingService.service.port }}
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        env:
+        - name: BOOKING_SERVICE_PORT
+          value: "{{ .Values.bookingService.service.port }}"
+        - name: MONGO_URL
+          value: {{ include "restaurant-booking.mongoUrl" . | quote }}
+        - name: REDIS_URL
+          value: {{ include "restaurant-booking.redisUrl" . | quote }}
+        - name: MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: restaurant-secrets
+              key: MONGO_PASSWORD
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.bookingService.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: {{ .Values.bookingService.name }}
+spec:
+  type: {{ .Values.bookingService.service.type }}
+  selector:
+    app: {{ .Values.bookingService.name }}
+  ports:
+  - port: {{ .Values.bookingService.service.port }}
+    targetPort: {{ .Values.bookingService.service.port }}
+    name: http
+---
+{{- if .Values.bookingService.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.bookingService.name }}-hpa
+  namespace: {{ .Values.global.namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.bookingService.name }}
+  minReplicas: {{ .Values.bookingService.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.bookingService.autoscaling.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.bookingService.autoscaling.targetCPUUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.bookingService.autoscaling.targetMemoryUtilizationPercentage }}
+{{- end }}
+{{- end }}

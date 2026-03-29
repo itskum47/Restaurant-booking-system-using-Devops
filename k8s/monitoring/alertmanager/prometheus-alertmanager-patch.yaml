@@ -1,0 +1,9 @@
+# This file is a Helm values patch for kube-prometheus-stack.
+# Apply via: helm upgrade kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+#   -n monitoring -f k8s/monitoring/alertmanager/prometheus-alertmanager-patch.yaml
+alertmanager:
+  alertmanagerSpec:
+    alertmanagerConfigSelector:
+      matchLabels:
+        alertmanagerConfig: restaurant-booking
+    alertmanagerConfigNamespaceSelector: {}

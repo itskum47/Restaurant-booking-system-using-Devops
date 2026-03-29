@@ -1,0 +1,114 @@
+{
+  "uid": "ai-service",
+  "title": "AI Service (Gemini)",
+  "tags": ["restaurant", "ai", "gemini"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Total Gemini Requests",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "targets": [{
+        "datasource": { "uid": "prometheus" },
+        "expr": "sum(gemini_requests_total)"
+      }],
+      "options": { "colorMode": "value", "graphMode": "area" }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Total Tokens Used",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "targets": [{
+        "datasource": { "uid": "prometheus" },
+        "expr": "sum(gemini_tokens_total)"
+      }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Gemini Success Rate (%)",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "targets": [{
+        "datasource": { "uid": "prometheus" },
+        "expr": "sum(gemini_requests_total{status='success'}) / sum(gemini_requests_total) * 100"
+      }],
+      "fieldConfig": {
+        "defaults": { "unit": "percent", "thresholds": { "steps": [
+          { "color": "red", "value": 0 },
+          { "color": "orange", "value": 90 },
+          { "color": "green", "value": 99 }
+        ]}}
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Gemini Latency (p50 / p95 / p99)",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": { "uid": "prometheus" },
+          "expr": "histogram_quantile(0.50, sum(rate(gemini_latency_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "datasource": { "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(gemini_latency_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "datasource": { "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum(rate(gemini_latency_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Token Usage Rate (tokens/min)",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": { "uid": "prometheus" },
+          "expr": "sum(rate(gemini_tokens_total{direction='input'}[1m])) * 60",
+          "legendFormat": "Input tokens/min"
+        },
+        {
+          "datasource": { "uid": "prometheus" },
+          "expr": "sum(rate(gemini_tokens_total{direction='output'}[1m])) * 60",
+          "legendFormat": "Output tokens/min"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "piechart",
+      "title": "Requests by Intent Type",
+      "gridPos": { "x": 0, "y": 12, "w": 8, "h": 8 },
+      "targets": [{
+        "datasource": { "uid": "prometheus" },
+        "expr": "sum(gemini_requests_total) by (intent_type)",
+        "legendFormat": "{{ intent_type }}"
+      }]
+    },
+    {
+      "id": 7,
+      "type": "logs",
+      "title": "Recent AI Service Logs",
+      "gridPos": { "x": 8, "y": 12, "w": 16, "h": 8 },
+      "targets": [{
+        "datasource": { "uid": "loki" },
+        "expr": "{service=\"ai-service\"}",
+        "legendFormat": ""
+      }],
+      "options": { "showLabels": true, "showTime": true }
+    }
+  ]
+}

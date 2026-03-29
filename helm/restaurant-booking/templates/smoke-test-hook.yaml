@@ -1,0 +1,50 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: smoke-test
+  namespace: restaurant-system
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 120
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: smoke-test
+          image: curlimages/curl:8.5.0
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              BASE="http://api-gateway.restaurant-system.svc.cluster.local:3000"
+              echo "--- Health checks ---"
+
+              check() {
+                local label=$1; local url=$2; local expected=$3
+                code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$url")
+                if [ "$code" -ne "$expected" ]; then
+                  echo "FAIL [$label]: expected $expected got $code"
+                  exit 1
+                fi
+                echo "OK   [$label]: $code"
+              }
+
+              check "api-gateway-health"    "$BASE/health"              200
+              check "api-gateway-readiness" "$BASE/ready"               200
+              check "bookings-endpoint"     "$BASE/api/bookings"        401
+              check "restaurants-endpoint"  "$BASE/api/restaurants"     200
+              check "ai-parse-endpoint"     "http://ai-service.restaurant-system.svc.cluster.local:8001/health" 200
+
+              echo "--- Smoke tests PASSED ---"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi

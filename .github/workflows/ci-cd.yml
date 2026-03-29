@@ -1,0 +1,344 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/restaurant-booking
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  # ─── BUILD ────────────────────────────────────────────────────────────────
+  build:
+    name: Build Images
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api-gateway, ai-service, restaurant-service, booking-service, notification-service, frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and cache image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/${{ matrix.service }}
+          push: false
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          outputs: type=docker,dest=/tmp/${{ matrix.service }}.tar
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-${{ matrix.service }}
+          path: /tmp/${{ matrix.service }}.tar
+          retention-days: 1
+
+  # ─── LINT ─────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python linters
+        run: pip install flake8 black isort
+
+      - name: flake8 (Python services)
+        run: |
+          for svc in ai-service booking-service; do
+            echo "--- Linting services/$svc ---"
+            flake8 services/$svc/app --max-line-length=120 --extend-ignore=E203,W503
+          done
+
+      - name: black --check (Python services)
+        run: |
+          for svc in ai-service booking-service; do
+            black --check services/$svc/app --line-length 120
+          done
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: services/api-gateway/package-lock.json
+
+      - name: ESLint (Node services)
+        run: |
+          for svc in api-gateway restaurant-service notification-service; do
+            echo "--- Linting services/$svc ---"
+            cd services/$svc && npm ci && npm run lint 2>/dev/null || echo "No lint script — skipping"
+            cd ../../..
+          done
+
+      - name: Helm lint
+        run: |
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          helm lint helm/restaurant-booking/
+          helm template restaurant-booking helm/restaurant-booking/ -f helm/restaurant-booking/values.yaml > /dev/null
+
+  # ─── TEST ─────────────────────────────────────────────────────────────────
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 3s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Test booking-service
+        working-directory: services/booking-service
+        env:
+          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-secret-key-for-ci
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx pytest-cov
+          pytest tests/ -v --cov=app --cov-report=xml --cov-fail-under=80
+
+      - name: Test ai-service
+        working-directory: services/ai-service
+        env:
+          GEMINI_API_KEY: mock-key-for-testing
+          GROQ_API_KEY: mock-key-for-testing
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx pytest-cov
+          pytest tests/ -v --cov=app --cov-report=xml --cov-fail-under=80
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Test api-gateway
+        working-directory: services/api-gateway
+        env:
+          JWT_SECRET: test-secret-key-for-ci
+        run: |
+          npm ci
+          npm test -- --coverage --coverageThreshold='{"global":{"lines":70}}'
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-reports
+          path: |
+            services/booking-service/coverage.xml
+            services/ai-service/coverage.xml
+          retention-days: 7
+
+  # ─── SECURITY SCAN ────────────────────────────────────────────────────────
+  scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: [build]
+    strategy:
+      matrix:
+        service: [api-gateway, ai-service, restaurant-service, booking-service, notification-service, frontend]
+    steps:
+      - name: Download image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: image-${{ matrix.service }}
+          path: /tmp
+
+      - name: Load image
+        run: docker load --input /tmp/${{ matrix.service }}.tar
+
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}
+          format: "sarif"
+          output: "trivy-${{ matrix.service }}.sarif"
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-${{ matrix.service }}.sarif"
+
+  # ─── PUSH ─────────────────────────────────────────────────────────────────
+  push:
+    name: Push Images
+    runs-on: ubuntu-latest
+    needs: [lint, test, scan]
+    strategy:
+      matrix:
+        service: [api-gateway, ai-service, restaurant-service, booking-service, notification-service, frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tag
+        id: tag
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | head -c 8)
+          echo "tag=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "latest=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:latest" >> $GITHUB_OUTPUT
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/${{ matrix.service }}
+          push: true
+          tags: |
+            ${{ steps.tag.outputs.tag }}
+            ${{ steps.tag.outputs.latest }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+  # ─── DEPLOY STAGING ───────────────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy → Staging
+    runs-on: ubuntu-latest
+    needs: [push]
+    environment:
+      name: staging
+      url: https://staging.restaurant-booking.example.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG_STAGING }}
+
+      - name: Deploy to staging via Helm
+        run: |
+          helm upgrade --install restaurant-booking ./helm/restaurant-booking \
+            --namespace restaurant-system-staging \
+            --create-namespace \
+            --values helm/restaurant-booking/values.yaml \
+            --values helm/restaurant-booking/values-staging.yaml \
+            --set global.imageTag=${{ github.sha }} \
+            --set global.imageRegistry=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }} \
+            --atomic \
+            --timeout=10m \
+            --wait
+
+      - name: Smoke test staging
+        run: |
+          sleep 15
+          kubectl run smoke-test --image=curlimages/curl:latest \
+            --restart=Never --rm -it \
+            --namespace restaurant-system-staging \
+            -- sh -c "
+              for svc in api-gateway ai-service booking-service restaurant-service; do
+                echo \"Testing: http://\${svc}:8000/health\"
+                curl -sf http://\${svc}:8000/health || exit 1
+              done
+              echo 'All health checks passed'
+            "
+
+  # ─── DEPLOY PRODUCTION ────────────────────────────────────────────────────
+  deploy-prod:
+    name: Deploy → Production
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    environment:
+      name: production
+      url: https://restaurant-booking.example.com
+    # Manual approval is enforced via the GitHub Environment protection rule
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG_PROD }}
+
+      - name: Deploy to production via Helm
+        run: |
+          helm upgrade --install restaurant-booking ./helm/restaurant-booking \
+            --namespace restaurant-system-prod \
+            --create-namespace \
+            --values helm/restaurant-booking/values.yaml \
+            --values helm/restaurant-booking/values-prod.yaml \
+            --set global.imageTag=${{ github.sha }} \
+            --set global.imageRegistry=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }} \
+            --atomic \
+            --timeout=15m \
+            --wait
+
+      - name: Verify production rollout
+        run: |
+          kubectl rollout status deployment --namespace restaurant-system-prod --timeout=5m

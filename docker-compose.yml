@@ -1,0 +1,191 @@
+version: '3.9'
+
+networks:
+  restaurant-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  mongo-data:
+  redis-data:
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: restaurant-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-restaurant_db}
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret123}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - restaurant-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
+
+  mongodb:
+    image: mongo:6.0
+    container_name: restaurant-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-secret123}
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - restaurant-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "27017:27017"
+
+  redis:
+    image: redis:7-alpine
+    container_name: restaurant-redis
+    networks:
+      - restaurant-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "6379:6379"
+
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: restaurant-api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - JWT_SECRET=${JWT_SECRET:-supersecretkey}
+      - AI_SERVICE_URL=http://ai-service:8001
+      - RESTAURANT_SERVICE_URL=http://restaurant-service:3001
+      - BOOKING_SERVICE_URL=http://booking-service:8002
+      - RATE_LIMIT_WINDOW_MS=60000
+      - RATE_LIMIT_MAX_REQUESTS=100
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - restaurant-network
+    restart: unless-stopped
+
+  ai-service:
+    build:
+      context: ./services/ai-service
+      dockerfile: Dockerfile
+    container_name: restaurant-ai-service
+    ports:
+      - "8001:8001"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-mock}
+      - OPENAI_MODEL=${OPENAI_MODEL:-llama3-8b-8192}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.groq.com/openai/v1}
+      - RESTAURANT_SERVICE_URL=http://restaurant-service:3001
+      - AI_SERVICE_PORT=8001
+      - AI_MAX_TOKENS=500
+      - AI_TEMPERATURE=0.7
+    networks:
+      - restaurant-network
+    restart: unless-stopped
+
+  restaurant-service:
+    build:
+      context: ./services/restaurant-service
+      dockerfile: Dockerfile
+    container_name: restaurant-restaurant-service
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://admin:secret123@postgres:5432/restaurant_db
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=restaurant_db
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=secret123
+      - RESTAURANT_SERVICE_PORT=3001
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - restaurant-network
+    restart: unless-stopped
+
+  booking-service:
+    build:
+      context: ./services/booking-service
+      dockerfile: Dockerfile
+    container_name: restaurant-booking-service
+    ports:
+      - "8002:8002"
+    environment:
+      - MONGO_URL=mongodb://admin:secret123@mongodb:27017
+      - MONGO_DB=bookings
+      - REDIS_URL=redis://redis:6379
+      - BOOKING_SERVICE_PORT=8002
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-sk_test_demo}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-whsec_demo}
+      - NOTIFICATION_SERVICE_URL=http://notification-service:3003
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - restaurant-network
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    container_name: restaurant-notification-service
+    ports:
+      - "3003:3003"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - NOTIFICATION_SERVICE_PORT=3003
+      - NOTIFICATION_EMAIL_FROM=noreply@restaurant-booking.com
+      - SMTP_HOST=${SMTP_HOST:-smtp.mailtrap.io}
+      - SMTP_PORT=${SMTP_PORT:-465}
+      - SMTP_USER=${SMTP_USER:-user}
+      - SMTP_PASS=${SMTP_PASS:-pass}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:74}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - restaurant-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./services/frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_GROQ_API_KEY=${VITE_GROQ_API_KEY}
+    container_name: restaurant-frontend
+    ports:
+      - "80:80"
+    environment:
+      - VITE_API_URL=http://localhost:3000
+    depends_on:
+      - api-gateway
+    networks:
+      - restaurant-network
+    restart: unless-stopped
