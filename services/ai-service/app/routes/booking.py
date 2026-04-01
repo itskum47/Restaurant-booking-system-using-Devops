@@ -9,6 +9,7 @@ import httpx
 from datetime import datetime, timedelta
 
 from app.services.llm_service import llm_service as gemini_service
+from app.services.places_service import places_service
 from app.metrics.prometheus import (
     ai_requests_total,
     ai_inference_duration,
@@ -24,6 +25,7 @@ class BookingRequest(BaseModel):
     user_id: Optional[str] = None
     context: Optional[Dict[str, Any]] = None
     conversation_history: Optional[List[Dict[str, str]]] = None
+    location: Optional[Dict[str, Any]] = None
 
 class BookingResponse(BaseModel):
     intent: str
@@ -48,10 +50,11 @@ async def process_booking_request(request: BookingRequest):
     start_time = time.time()
     
     try:
-        # Parse the booking request using Gemini
+        # Parse the booking request using Gemini with explicit location
         parsed_data = await gemini_service.parse_booking_intent(
             message=request.message,
-            conversation_history=request.conversation_history or []
+            conversation_history=request.conversation_history or [],
+            location=request.location
         )
         
         # Extract booking details from Gemini response
@@ -90,6 +93,17 @@ async def process_booking_request(request: BookingRequest):
         ai_requests_total.labels(intent_type="unknown", status="error").inc()
         ai_inference_duration.labels(intent_type="error").observe(duration)
         
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/locations/search")
+async def search_locations(q: str):
+    """
+    Search for locations worldwide using Google Places Autocomplete API.
+    """
+    try:
+        locations = await places_service.search_locations(q)
+        return {"locations": locations}
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/recommendations")
@@ -139,6 +153,30 @@ async def get_restaurant_recommendations(criteria: Dict[str, Any]) -> List[Dict[
     )
     
     try:
+        # If external location search is defined (we check if places_service is enabled)
+        if places_service.enabled and criteria.get("location"):
+            location_string = criteria["location"]
+            # We assume "City" or "City, Country" from the location
+            city_parts = location_string.split(',')
+            city = city_parts[0].strip()
+            country = city_parts[1].strip() if len(city_parts) > 1 else "Unknown"
+            
+            location_details = await places_service.geocode_location(city, country)
+            if location_details:
+                external_results = await places_service.search_restaurants(
+                    location_details=location_details,
+                    query="", 
+                    cuisine=criteria.get("cuisine", "")
+                )
+                if external_results:
+                    for restaurant in external_results:
+                        restaurant["available_slots"] = generate_time_slots(
+                            criteria.get("date"),
+                            criteria.get("party_size", 2)
+                        )
+                    return external_results
+
+        # Fallback to internal restaurant service
         params = {}
         if criteria.get("cuisine"):
             params["cuisine"] = criteria["cuisine"]

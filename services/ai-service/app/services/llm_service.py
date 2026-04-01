@@ -58,20 +58,26 @@ class LLMService:
             self.client = None
             logger.warning("⚠️  Using mock AI responses (Gemini API key not configured)")
     
-    async def parse_booking_intent(self, message: str) -> Dict[str, Any]:
+    async def parse_booking_intent(self, message: str, conversation_history: list = None, location: Dict = None) -> Dict[str, Any]:
         """
         Parse natural language booking request and extract structured data.
         Uses Gemini if available, otherwise falls back to pattern matching.
         """
         if self.use_gemini:
-            return await self._parse_with_gemini(message)
+            return await self._parse_with_gemini(message, conversation_history, location)
         else:
-            return self._parse_with_patterns(message)
+            return self._parse_with_patterns(message, location)
     
-    async def _parse_with_gemini(self, message: str) -> Dict[str, Any]:
+    async def _parse_with_gemini(self, message: str, conversation_history: list = None, location: Dict = None) -> Dict[str, Any]:
         """Parse booking intent using Google Gemini."""
         try:
-            response = self.client.generate_content(message)
+            prompt_message = message
+            if location and location.get('city'):
+                prompt_message = f"User is looking for recommendations in {location.get('city')}, {location.get('country', '')}. Prioritize finding and recommending restaurants in this specific real-world location. Context: {message}"
+                
+            # Note: conversation_history could be appended to GenAI chat context if using ChatSession, 
+            # but for simple singular prompt we use generate_content
+            response = self.client.generate_content(prompt_message)
             raw_text = response.text.strip()
             
             # Clean markdown if present
@@ -91,9 +97,9 @@ class LLMService:
             
         except Exception as e:
             logger.info(f"Gemini error: {e}, falling back to pattern matching")
-            return self._parse_with_patterns(message)
+            return self._parse_with_patterns(message, location)
     
-    def _parse_with_patterns(self, message: str) -> Dict[str, Any]:
+    def _parse_with_patterns(self, message: str, location: Dict = None) -> Dict[str, Any]:
         """Parse booking intent using regex patterns (fallback method)."""
         message_lower = message.lower()
         extracted = {}
@@ -201,11 +207,14 @@ class LLMService:
             extracted["time"] = extracted_time
 
         # Extract location
-        locations = ["downtown", "uptown", "midtown", "city center", "central"]
-        for location in locations:
-            if location in message_lower:
-                extracted["location"] = location.title()
-                break
+        if location and location.get('city'):
+            extracted['location'] = f"{location.get('city')}, {location.get('country', '')}".strip(', ')
+        else:
+            locations = ["downtown", "uptown", "midtown", "city center", "central"]
+            for loc in locations:
+                if loc in message_lower:
+                    extracted["location"] = loc.title()
+                    break
 
         # Extract price range
         if "cheap" in message_lower or "budget" in message_lower or "inexpensive" in message_lower:
@@ -247,8 +256,9 @@ class LLMService:
             "_confidence": 0.7
         }
 
-llm_service = LLMService()
     def detect_lang(self, text: str) -> str:
         """Detect language of the text. Fallback to English."""
         # Simple multilingual check for i18n
         return "en"
+
+llm_service = LLMService()

@@ -10,6 +10,7 @@ const { metricsMiddleware, customMetrics } = require('./middleware/metrics');
 const { initializeAuthDatabase } = require('./db/postgres');
 const authRoutes = require('./routes/auth');
 const proxyRoutes = require('./routes/proxy');
+const publicLlmRoutes = require('./routes/publicLlm');
 
 const app = express();
 const PORT = process.env.API_GATEWAY_PORT || 3000;
@@ -62,6 +63,9 @@ app.use('/api', rateLimiter);
 
 // Auth routes (no JWT required for /register and /login)
 app.use('/api/auth', authRoutes);
+
+// Public LLM route (no JWT required)
+app.use('/api/public', publicLlmRoutes);
 
 // Apply JWT authentication to remaining API routes
 app.use('/api', authMiddleware);

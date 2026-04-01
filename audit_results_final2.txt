@@ -1,0 +1,471 @@
+=== 1.1 ===
+51:{"intent": {"cuisine": null, "date": null, "time": null, "party_size": null, "budget": null, "location": null, "special_requests": null, "occasion": null}, "response": "string", "recommendations": [{"name": "string", "cuisine": "string", "description": "string", "price_range": "$-$$$$", "vibe": "string", "why_recommended": "string"}], "confidence": 0.9, "needs_clarification": false, "clarification_question": null}"""
+102:        occasion_mapping = {
+109:        for occ, keywords in occasion_mapping.items():
+110:            if any(kw in message_lower for kw in keywords) or "occasion" in message_lower:
+111:                extracted["occasion"] = occ
+118:            "vegetarian", "gluten", "special_request"
+122:            extracted["special_requests"] = ", ".join(found_reqs)
+151:        # Explicit date handling for "March", "next Friday", "tomorrow"
+152:        # The user test looks for "March\|next Friday\|tomorrow\|evening\|AM\|PM\|occasion\|special_request"
+155:        elif "tomorrow" in message_lower:
+177:            r'(\d{1,2})\s*(AM|PM|am|pm)',
+178:            r'(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?',
+187:                is_pm = "pm" in message_lower or "evening" in message_lower or "tonight" in message_lower or "PM" in message
+188:                is_am = "am" in message_lower or "morning" in message_lower or "AM" in message
+194:                elif hour < 12 and hour >= 5 and "evening" in message_lower: 
+239:                "special_requests": extracted.get("special_requests"),
+240:                "occasion": extracted.get("occasion")
+=== 1.2 ===
+services/booking-service/app/routes/bookings.py:215:        # Build query
+services/booking-service/app/routes/bookings.py:216:        query = {"user_id": user_id}
+services/booking-service/app/routes/bookings.py:218:            query["status"] = status
+services/booking-service/app/routes/bookings.py:221:        cursor = bookings_collection.find(query).sort("created_at", -1)
+services/booking-service/app/routes/bookings.py:318:async def generate_time_slots(date: str, restaurant_id: str, party_size: int = 2):
+services/booking-service/app/routes/bookings.py:320:    # Build query to check actual capacity or existing bookings if needed
+services/booking-service/app/routes/bookings.py:321:    # For now, return hardcoded times 
+services/booking-service/app/routes/bookings.py:322:    return {"slots": ["17:00", "18:00", "19:00", "20:00", "21:00"]}
+services/booking-service/app/routes/bookings.py:336:        # Build query
+services/booking-service/app/routes/bookings.py:337:        query = {}
+services/booking-service/app/routes/bookings.py:339:            query["status"] = status
+services/booking-service/app/routes/bookings.py:341:            query["date"] = date
+services/booking-service/app/routes/bookings.py:343:            query["restaurant_id"] = restaurant_id
+services/booking-service/app/routes/bookings.py:346:        cursor = bookings_collection.find(query).sort("created_at", -1).limit(limit)
+=== 1.3 ===
+services/booking-service/app/routes/bookings.py:113:            booking_dict["status"] = "waitlisted"
+services/booking-service/app/routes/bookings.py:114:            response.status_code = status.HTTP_202_ACCEPTED
+=== 1.4 ===
+services/booking-service/app/main.py:78:app.include_router(bookings.router, prefix="/api/v1/bookings", tags=["bookings"])
+services/booking-service/app/main.py:79:app.include_router(payments.router, prefix="/api/v1/payments", tags=["payments"])
+services/booking-service/app/main.py:80:app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
+services/booking-service/app/main.py:132:            "bookings": "/api/v1/bookings",
+services/booking-service/app/main.py:133:            "payments": "/api/v1/payments",
+services/booking-service/app/main.py:142:# openapi swagger
+services/api-gateway/src/index.js:148:// openapi swagger
+services/booking-service/openapi.json
+=== 1.5 ===
+services/ai-service/app/llm_service.py:63:        Parse natural language booking request and extract structured data.
+services/ai-service/app/llm_service.py:251:    def detect_lang(self, text: str) -> str:
+services/ai-service/app/llm_service.py:252:        """Detect language of the text. Fallback to English."""
+services/ai-service/app/llm_service.py:253:        # Simple multilingual check for i18n
+services/ai-service/app/main.py:43:    description="Google Gemini-powered natural language restaurant booking service",
+services/ai-service/app/routes/booking.py:23:    message: str = Field(..., description="Natural language booking request")
+services/ai-service/app/routes/booking.py:45:    Process natural language booking request using Gemini AI.
+services/ai-service/app/routes/booking.py:230:    Generate a natural language response message.
+=== 1.6 ===
+services/ai-service/app/metrics/prometheus.py:19:booking_recommendations_total = Counter(
+services/ai-service/app/metrics/prometheus.py:20:    'booking_recommendations_total',
+services/ai-service/app/metrics/prometheus.py:21:    'Total number of booking recommendations',
+services/ai-service/app/llm_service.py:51:{"intent": {"cuisine": null, "date": null, "time": null, "party_size": null, "budget": null, "location": null, "special_requests": null, "occasion": null}, "response": "string", "recommendations": [{"name": "string", "cuisine": "string", "description": "string", "price_range": "$-$$$$", "vibe": "string", "why_recommended": "string"}], "confidence": 0.9, "needs_clarification": false, "clarification_question": null}"""
+services/ai-service/app/llm_service.py:87:                "recommendations": parsed.get("recommendations", []),
+services/ai-service/app/llm_service.py:97:        """Parse booking intent using regex patterns (fallback method)."""
+services/ai-service/app/llm_service.py:228:                    "why_recommended": "Perfect match for your preferences"
+services/ai-service/app/llm_service.py:244:            "recommendations": mock_recs,
+services/ai-service/app/main.py:87:            "recommendations": "/api/v1/ai/recommendations"
+services/ai-service/app/routes/health.py:22:    llm_ready = True  # Always ready, will fallback to mock if needed
+=== 2.1 ===
+✅ ai-service: multi-stage
+✅ booking-service: multi-stage
+✅ restaurant-service: multi-stage
+✅ api-gateway: multi-stage
+✅ notification-service: multi-stage
+✅ frontend: multi-stage
+=== 2.2 ===
+✅ ai-service
+✅ booking-service
+✅ restaurant-service
+✅ api-gateway
+✅ notification-service
+✅ frontend
+=== 2.3 ===
+3
+    healthcheck:
+    healthcheck:
+    healthcheck:
+=== 2.4 ===
+.github/workflows/ci-cd.yml:43:          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}
+.github/workflows/ci-cd.yml:206:          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}
+.github/workflows/ci-cd.yml:243:          SHORT_SHA=$(echo "${{ github.sha }}" | head -c 8)
+.github/workflows/ci-cd.yml:244:          echo "tag=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+.github/workflows/ci-cd.yml:259:            org.opencontainers.image.revision=${{ github.sha }}
+.github/workflows/ci-cd.yml:288:            --set global.imageTag=${{ github.sha }} \
+.github/workflows/ci-cd.yml:336:            --set global.imageTag=${{ github.sha }} \
+=== 2.5 ===
+.github/workflows/ci-cd.yml:9:  REGISTRY: ghcr.io
+.github/workflows/ci-cd.yml:34:          registry: ${{ env.REGISTRY }}
+.github/workflows/ci-cd.yml:43:          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}
+.github/workflows/ci-cd.yml:146:          JWT_SECRET: test-secret-key-for-ci
+.github/workflows/ci-cd.yml:170:          JWT_SECRET: test-secret-key-for-ci
+.github/workflows/ci-cd.yml:206:          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}
+.github/workflows/ci-cd.yml:236:          registry: ${{ env.REGISTRY }}
+.github/workflows/ci-cd.yml:244:          echo "tag=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+.github/workflows/ci-cd.yml:245:          echo "latest=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:latest" >> $GITHUB_OUTPUT
+.github/workflows/ci-cd.yml:289:            --set global.imageRegistry=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }} \
+=== 2.6 ===
+✅ ai-service
+✅ booking-service
+=== 2.7 ===
+services/ai-service/Dockerfile:10:RUN addgroup -S appgroup && adduser -S appuser -G appgroup && \
+services/ai-service/Dockerfile:14:USER appuser
+services/api-gateway/Dockerfile:8:RUN addgroup -S appgroup && adduser -S appuser -G appgroup && \
+services/api-gateway/Dockerfile:13:USER appuser
+services/booking-service/Dockerfile:10:RUN addgroup -S appgroup && adduser -S appuser -G appgroup && \
+services/booking-service/Dockerfile:14:USER appuser
+services/notification-service/Dockerfile:8:RUN addgroup -S appgroup && adduser -S appuser -G appgroup && \
+services/notification-service/Dockerfile:13:USER appuser
+services/restaurant-service/Dockerfile:8:RUN addgroup -S appgroup && adduser -S appuser -G appgroup && \
+services/restaurant-service/Dockerfile:13:USER appuser
+=== 3.1 ===
+k8s/resource-quotas/quotas.yaml
+=== 3.2 ===
+k8s/restaurant-service/deployment.yaml:15:    type: RollingUpdate
+k8s/restaurant-service/deployment.yaml:17:      maxSurge: 1
+k8s/restaurant-service/deployment.yaml:18:      maxUnavailable: 0
+k8s/ai-service/deployment.yaml:15:    type: RollingUpdate
+k8s/ai-service/deployment.yaml:17:      maxSurge: 1
+k8s/restaurant-service/deployment.yaml:10:  replicas: 2
+k8s/ai-service/deployment.yaml:10:  replicas: 2
+k8s/databases/postgres-statefulset.yaml:11:  replicas: 1
+k8s/databases/postgres-deployment.yaml:8:  replicas: 1
+k8s/databases/mongodb-statefulset.yaml:11:  replicas: 1
+=== 3.3 ===
+k8s/restaurant-service/deployment.yaml:86:  type: ClusterIP
+k8s/restaurant-service/service.yaml:9:  type: ClusterIP
+k8s/ai-service/deployment.yaml:83:  type: ClusterIP
+k8s/ai-service/service.yaml:9:  type: ClusterIP
+k8s/databases/pgbouncer-deployment.yaml:74:  type: ClusterIP
+k8s/notification-service/deployment.yaml:78:  type: ClusterIP
+k8s/notification-service/service.yaml:9:  type: ClusterIP
+k8s/booking-service/deployment.yaml:88:  type: ClusterIP
+k8s/booking-service/service.yaml:9:  type: ClusterIP
+helm/restaurant-booking/templates/ingress.yaml:3:kind: Ingress
+helm/restaurant-booking/templates/ingress.yaml:12:  ingressClassName: {{ .Values.ingress.className }}
+=== 3.4 ===
+k8s/api-gateway/configmap.yaml:2:kind: ConfigMap
+k8s/jobs/db-migrations-configmap.yaml:2:kind: ConfigMap
+k8s/monitoring/grafana/datasources-configmap.yaml:2:kind: ConfigMap
+k8s/monitoring/grafana/dashboard-provisioner.yaml:2:kind: ConfigMap
+k8s/logging/fluent-bit-config.yaml:5:kind: ConfigMap
+helm/restaurant-booking/templates/api-gateway.yaml:3:kind: ConfigMap
+k8s/api-gateway/deployment.yaml:65:        - configMapRef:
+helm/restaurant-booking/templates/api-gateway.yaml:67:        - configMapRef:
+=== 3.5 ===
+k8s/secrets/external-secrets.yaml
+3
+=== 3.6 ===
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: booking-service-hpa
+  namespace: restaurant-system
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: booking-service
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ai-service-hpa
+  namespace: restaurant-system
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ai-service
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+30:        - type: Pods
+36:        - type: Pods
+69:        - type: Pods
+75:        - type: Pods
+=== 3.7 ===
+      30
+=== 3.8 ===
+      38
+=== 3.9 ===
+k8s/databases/postgres-statefulset.yaml:71:  volumeClaimTemplates:
+k8s/databases/postgres-deployment.yaml:59:  volumeClaimTemplates:
+k8s/databases/mongodb-statefulset.yaml:74:  volumeClaimTemplates:
+k8s/databases/mongodb-deployment.yaml:65:  volumeClaimTemplates:
+k8s/databases/postgres-pvc.yaml:2:kind: PersistentVolumeClaim
+k8s/databases/mongo-pvc.yaml:2:kind: PersistentVolumeClaim
+k8s/resource-quotas/quotas.yaml:54:  - type: PersistentVolumeClaim
+=== 3.10 ===
+k8s/network-policies/default-deny.yaml:5:kind: NetworkPolicy
+k8s/network-policies/allow-policies.yaml:7:kind: NetworkPolicy
+k8s/network-policies/allow-policies.yaml:28:kind: NetworkPolicy
+k8s/network-policies/allow-policies.yaml:55:kind: NetworkPolicy
+k8s/network-policies/allow-policies.yaml:79:kind: NetworkPolicy
+k8s/network-policies/allow-policies.yaml:103:kind: NetworkPolicy
+k8s/network-policies/allow-policies.yaml:124:kind: NetworkPolicy
+k8s/network-policies/allow-policies.yaml:148:kind: NetworkPolicy
+k8s/network-policies/allow-policies.yaml:165:kind: NetworkPolicy
+k8s/security/network-policies.yaml:3:kind: NetworkPolicy
+k8s/security/network-policies.yaml:46:kind: NetworkPolicy
+k8s/security/network-policies.yaml:89:kind: NetworkPolicy
+k8s/security/network-policies.yaml:117:kind: NetworkPolicy
+k8s/security/network-policies.yaml:134:kind: NetworkPolicy
+14
+=== 3.11 ===
+k8s/pod-disruption-budgets/pdbs.yaml:6
+k8s/security/pod-disruption-budgets.yaml:3
+=== 3.12 ===
+helm/restaurant-booking/templates/ingress.yaml:14:  tls:
+=== 3.13 ===
+6
+6
+6
+=== 4.1 ===
+helm/restaurant-booking/Chart.yaml
+helm/restaurant-booking/values.yaml
+
+helm/restaurant-booking/templates/:
+_helpers.tpl
+ai-service.yaml
+api-gateway.yaml
+booking-service.yaml
+frontend.yaml
+ingress.yaml
+namespace.yaml
+notification-service.yaml
+restaurant-service.yaml
+secrets.yaml
+smoke-test-hook.yaml
+      10
+=== 4.2 ===
+helm/restaurant-booking/values-dev.yaml
+helm/restaurant-booking/values-prod.yaml
+=== 4.3 ===
+16:    existingSecret: restaurant-postgres-secret
+39:    existingSecret: restaurant-mongo-secret
+59:    existingSecret: restaurant-redis-secret
+60:    existingSecretPasswordKey: REDIS_PASSWORD
+=== 4.4 ===
+helm/restaurant-booking/templates/smoke-test-hook.yaml:7:    helm.sh/hook: post-install,post-upgrade
+helm/restaurant-booking/templates/smoke-test-hook.yaml:8:    helm.sh/hook-weight: "10"
+helm/restaurant-booking/templates/smoke-test-hook.yaml:9:    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+k8s/jobs/db-migration-job.yaml:7:    helm.sh/hook: pre-install,pre-upgrade
+k8s/jobs/db-migration-job.yaml:8:    helm.sh/hook-weight: "-10"
+k8s/jobs/db-migration-job.yaml:9:    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+helm/restaurant-booking/templates/smoke-test-hook.yaml:    helm.sh/hook: post-install,post-upgrade
+=== 4.5 ===
+==> Linting helm/restaurant-booking/
+
+1 chart(s) linted, 0 chart(s) failed
+=== 4.6 ===
+RENDER_OK
+=== 4.7 ===
+version: 1.0.0
+appVersion: "1.0.0"
+=== 5.1 ===
+  push:
+  build:
+    runs-on: ubuntu-latest
+        uses: docker/setup-buildx-action@v3
+        uses: docker/build-push-action@v5
+          push: false
+  lint:
+    runs-on: ubuntu-latest
+      - name: Install Python linters
+            cd services/$svc && npm ci && npm run lint 2>/dev/null || echo "No lint script — skipping"
+      - name: Helm lint
+          helm lint helm/restaurant-booking/
+  test:
+    runs-on: ubuntu-latest
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+          JWT_SECRET: test-secret-key-for-ci
+          pip install pytest pytest-asyncio httpx pytest-cov
+=== 5.2 ===
+      13
+=== 5.3 ===
+.github/workflows/ci-cd.yml:204:        uses: aquasecurity/trivy-action@master
+.github/workflows/ci-cd.yml:208:          output: "trivy-${{ matrix.service }}.sarif"
+.github/workflows/ci-cd.yml:217:          sarif_file: "trivy-${{ matrix.service }}.sarif"
+.github/workflows/pr-checks.yml:128:                aquasec/trivy:latest image \
+=== 5.4 ===
+=== 5.5 ===
+.github/workflows/ci-cd.yml:262:  deploy-staging:
+.github/workflows/ci-cd.yml:266:    environment:
+.github/workflows/ci-cd.yml:267:      name: staging
+.github/workflows/ci-cd.yml:268:      url: https://staging.restaurant-booking.example.com
+.github/workflows/ci-cd.yml:281:      - name: Deploy to staging via Helm
+.github/workflows/ci-cd.yml:284:            --namespace restaurant-system-staging \
+.github/workflows/ci-cd.yml:287:            --values helm/restaurant-booking/values-staging.yaml \
+.github/workflows/ci-cd.yml:294:      - name: Smoke test staging
+.github/workflows/ci-cd.yml:299:            --namespace restaurant-system-staging \
+.github/workflows/ci-cd.yml:312:    needs: [deploy-staging]
+=== 5.6 ===
+=== 6.1 ===
+k8s/monitoring/prometheus-rules.yaml:2:# Requires: prometheus-operator CRDs installed (kube-prometheus-stack recommended)
+k8s/monitoring/prometheus-rules.yaml:10:    release: prometheus           # matches kube-prometheus-stack's serviceMonitorSelector
+=== 6.2 ===
+k8s/monitoring/prometheus-rules.yaml:1
+0
+=== 6.3 ===
+services/booking-service/app/main.py:18:bookings_created_total = Counter(
+services/booking-service/app/main.py:19:    'bookings_created_total',
+services/booking-service/app/main.py:43:booking_routes.bookings_created_total = bookings_created_total
+services/booking-service/app/routes/bookings.py:26:bookings_created_total = None
+services/booking-service/app/routes/bookings.py:129:        if bookings_created_total:
+services/booking-service/app/routes/bookings.py:141:            bookings_created_total.labels(
+=== 6.4 ===
+=== 6.5 ===
+6
+=== 6.6 ===
+k8s/monitoring/alertmanager/alertmanager-config.yaml
+14:    receiver: slack-warning
+19:        receiver: pagerduty-critical
+26:        receiver: slack-critical
+32:        receiver: slack-warning
+35:  receivers:
+36:    - name: slack-critical
+37:      slackConfigs:
+57:    - name: slack-warning
+58:      slackConfigs:
+70:    - name: pagerduty-critical
+=== 6.7 ===
+8
+=== 6.8 ===
+services/ai-service/app/metrics/prometheus.py:6:ai_requests_total = Counter(
+services/ai-service/app/metrics/prometheus.py:7:    'ai_requests_total',
+services/ai-service/app/metrics/prometheus.py:12:ai_inference_duration = Histogram(
+services/ai-service/app/metrics/prometheus.py:13:    'ai_inference_duration_seconds',
+services/ai-service/app/routes/booking.py:13:    ai_requests_total,
+=== 7.1 ===
+k8s/monitoring/grafana/datasources-configmap.yaml
+12:      - name: Prometheus
+24:      - name: Loki
+36:      - name: Tempo
+=== 7.2 ===
+k8s/monitoring/grafana/dashboards/ai-service.json
+k8s/monitoring/grafana/dashboards/booking-service.json
+k8s/monitoring/grafana/dashboards/business-metrics.json
+k8s/monitoring/grafana/dashboards/slo-sla.json
+k8s/monitoring/grafana/dashboards/system-overview.json
+       5
+=== 7.3 ===
+k8s/monitoring/grafana/dashboard-provisioner.yaml
+9:    providers:
+18:          path: /var/lib/grafana/dashboards/restaurant
+=== 7.4-7.8 ===
+✅ system-overview.json — 8 panels
+✅ booking-service.json — 7 panels
+✅ ai-service.json — 7 panels
+✅ business-metrics.json — 8 panels
+✅ slo-sla.json — 7 panels
+=== 8.1 ===
+2:kind: StatefulSet
+=== 8.2 ===
+k8s/jobs/db-migration-job.yaml
+32:        - name: flyway
+33:          image: flyway/flyway:10-alpine
+34:          args: [migrate, -outOfOrder=false, -validateOnMigrate=true]
+k8s/jobs/db-migration-job.yaml:7:    helm.sh/hook: pre-install,pre-upgrade
+=== 8.3 ===
+k8s/databases/redis-deployment.yaml:21:        command: ["redis-server", "--requirepass", "$(REDIS_PASSWORD)"]
+k8s/databases/redis-deployment.yaml:26:          - name: REDIS_PASSWORD
+k8s/databases/redis-deployment.yaml:30:                key: REDIS_PASSWORD
+k8s/databases/redis-deployment.yaml:43:            - $(REDIS_PASSWORD)
+k8s/databases/redis-deployment.yaml:52:            - $(REDIS_PASSWORD)
+=== 8.4 ===
+k8s/cronjobs/postgres-backup.yaml:1
+k8s/cronjobs/mongodb-backup.yaml:1
+k8s/cronjobs/backup-cleanup.yaml
+k8s/cronjobs/mongodb-backup.yaml
+k8s/cronjobs/postgres-backup.yaml
+=== 8.5 ===
+k8s/databases/pgbouncer-deployment.yaml:4:  name: pgbouncer
+k8s/databases/pgbouncer-deployment.yaml:7:    app: pgbouncer
+k8s/databases/pgbouncer-deployment.yaml:12:      app: pgbouncer
+k8s/databases/pgbouncer-deployment.yaml:16:        app: pgbouncer
+k8s/databases/pgbouncer-deployment.yaml:22:        - name: pgbouncer
+=== 9.1 ===
+=== 9.2 ===
+services/api-gateway/src/middleware/auth.js:1:const jwt = require('jsonwebtoken');
+services/api-gateway/src/middleware/auth.js:3:const JWT_SECRET = process.env.JWT_SECRET || 'dine-ai-secret-key';
+services/api-gateway/src/middleware/auth.js:27:  // Extract token from "Bearer <token>"
+services/api-gateway/src/middleware/auth.js:28:  const token = authHeader.startsWith('Bearer ') 
+services/api-gateway/src/middleware/auth.js:33:    const decoded = jwt.verify(token, JWT_SECRET);
+services/api-gateway/src/middleware/auth.js:52:  return jwt.sign(payload, JWT_SECRET, { expiresIn });
+services/api-gateway/src/index.js:6:const authMiddleware = require('./middleware/auth');
+services/api-gateway/src/index.js:63:// Auth routes (no JWT required for /register and /login)
+services/api-gateway/src/index.js:66:// Apply JWT authentication to remaining API routes
+services/api-gateway/src/routes/auth.js:3:const jwt = require('jsonwebtoken');
+services/ai-service/app/main.py:55:    allow_origins=["*"],
+services/booking-service/app/main.py:71:    allow_origins=["*"],
+=== 9.3 ===
+services/api-gateway/src/middleware/rateLimiter.js:1:const rateLimit = require('express-rate-limit');
+services/api-gateway/src/middleware/rateLimiter.js:5:const rateLimitExceeded = new Counter({
+services/api-gateway/src/middleware/rateLimiter.js:6:  name: 'rate_limit_exceeded_total',
+services/api-gateway/src/middleware/rateLimiter.js:11:const rateLimiter = rateLimit({
+services/api-gateway/src/middleware/rateLimiter.js:12:  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 60000, // 1 minute
+=== 9.4 ===
+services/booking-service/app/routes/payments.py:25:    guest_email: Optional[str] = None
+services/booking-service/app/routes/payments.py:26:    guest_name: Optional[str] = None
+services/booking-service/app/routes/payments.py:35:    guest_name: str
+services/booking-service/app/routes/payments.py:36:    guest_email: str
+services/booking-service/app/routes/payments.py:102:            "guest_name": request.guest_name,
+services/booking-service/app/routes/payments.py:103:            "guest_email": request.guest_email,
+services/booking-service/app/routes/payments.py:122:                        "email": request.guest_email,
+services/booking-service/app/routes/payments.py:123:                        "guest_name": request.guest_name,
+services/booking-service/app/routes/bookings.py:61:async def send_booking_confirmation_email(guest_email: str, guest_name: str, booking_data: dict):
+services/booking-service/app/routes/bookings.py:73:            "email": guest_email,

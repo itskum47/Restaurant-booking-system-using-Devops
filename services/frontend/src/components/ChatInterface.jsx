@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { aiService } from '../services/api';
+import LocationSelector from './chat/LocationSelector';
 
 function ChatInterface({ onRecommendations, onRestaurantSelect }) {
   const [message, setMessage] = useState('');
+  const [location, setLocation] = useState({ city: 'Los Angeles', country: 'United States' });
   const [messages, setMessages] = useState([
     {
       type: 'bot',
@@ -30,7 +32,7 @@ function ChatInterface({ onRecommendations, onRestaurantSelect }) {
 
     try {
       // Send to AI service
-      const response = await aiService.processBooking(userMessage);
+      const response = await aiService.processBooking(userMessage, messages, location);
 
       // Add AI response to chat
       setMessages(prev => [...prev, {
@@ -76,11 +78,22 @@ function ChatInterface({ onRecommendations, onRestaurantSelect }) {
         <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
           <span className="text-xl">🤖</span>
         </div>
-        <div className="ml-3">
-          <h2 className="text-lg font-semibold text-gray-900">AI Assistant</h2>
-          <p className="text-xs text-gray-500">Natural language booking</p>
+        <div className="ml-3 flex-1 flex justify-between items-center">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">AI Assistant</h2>
+            <p className="text-xs text-gray-500">Global natural language booking</p>
+          </div>
         </div>
       </div>
+
+      <LocationSelector onLocationChange={(loc) => {
+        setLocation(loc);
+        setMessages(prev => [...prev, {
+          type: 'bot',
+          content: `Concierge location updated to ${loc.city || 'your current location'}. How can I help you dine there?`,
+          timestamp: new Date()
+        }]);
+      }} />
 
       {/* Chat Messages */}
       <div className="flex-1 overflow-y-auto mb-4 space-y-4">

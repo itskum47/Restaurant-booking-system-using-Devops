@@ -4,15 +4,18 @@ import { useAI } from '../hooks/useAI';
 import BubbleAI from '../components/chat/BubbleAI';
 import BubbleUser from '../components/chat/BubbleUser';
 import TypingDots from '../components/chat/TypingDots';
-import { RESTAURANTS } from '../data/restaurants';
 
 export default function Chat() {
-  const [messages, setMessages] = useState([{ role: 'ai', text: "Good evening. I'm your personal dining concierge. Where shall we dine tonight?" }]);
+  const [messages, setMessages] = useState([{ role: 'ai', text: "Good evening. I'm your personal dining concierge. Where shall we dine tonight?", source: 'ai', sourceReason: 'welcome' }]);
   const [input, setInput] = useState('');
   const [recs, setRecs] = useState([]);
   const { chat, loading } = useAI();
   const chatRef = useRef(null);
   const navigate = useNavigate();
+
+  const lastAiMessage = [...messages].reverse().find((m) => m.role === 'ai');
+  const panelSource = lastAiMessage?.source || 'ai';
+  const panelReason = lastAiMessage?.sourceReason || 'welcome';
 
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
@@ -26,10 +29,21 @@ export default function Chat() {
     setInput('');
     setRecs([]);
 
-    const { text, restaurants } = await chat(txt, messages);
+    const { text, restaurants, source, sourceReason } = await chat(txt, messages);
 
     setRecs(restaurants);
-    setMessages(m => [...m, { role: 'ai', text }]);
+    try {
+      const byId = restaurants.reduce((acc, restaurant) => {
+        if (restaurant?.id) {
+          acc[String(restaurant.id)] = restaurant;
+        }
+        return acc;
+      }, {});
+      sessionStorage.setItem('restaurantCache', JSON.stringify(byId));
+    } catch {
+      // Ignore storage failures in private mode or restricted environments.
+    }
+    setMessages(m => [...m, { role: 'ai', text, source: source || 'ai', sourceReason: sourceReason || 'unknown' }]);
   };
 
   return (
@@ -45,11 +59,31 @@ export default function Chat() {
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#48bb78', animation: 'pulse 1.5s infinite' }} />
             <span style={{ color: '#48bb78', fontSize: 11 }}>Online</span>
+            <span
+              style={{
+                color: panelSource === 'ai' ? '#48bb78' : '#d69e2e',
+                fontSize: 10,
+                border: `1px solid ${panelSource === 'ai' ? 'rgba(72,187,120,0.35)' : 'rgba(214,158,46,0.35)'}`,
+                borderRadius: 999,
+                padding: '2px 8px',
+                letterSpacing: '.06em',
+                textTransform: 'uppercase',
+              }}
+            >
+              {panelSource === 'ai' ? 'AI Live' : 'Fallback'}
+            </span>
           </div>
         </div>
 
         <div ref={chatRef} style={{ flex: 1, overflowY: 'auto', padding: '28px', display: 'flex', flexDirection: 'column', gap: 22 }}>
-          {messages.map((m, i) => m.role === 'ai' ? <BubbleAI key={i} text={m.text} /> : <BubbleUser key={i} text={m.text} />)}
+          {messages.map((m, i) => m.role === 'ai' ? (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ fontSize: 10, color: m.source === 'ai' ? '#48bb78' : '#d69e2e', letterSpacing: '.08em', textTransform: 'uppercase', marginLeft: 6 }}>
+                {m.source === 'ai' ? 'AI Live' : 'Fallback'} · {m.sourceReason || 'unknown'}
+              </div>
+              <BubbleAI text={m.text} />
+            </div>
+          ) : <BubbleUser key={i} text={m.text} />)}
           {loading && <TypingDots />}
         </div>
 
@@ -64,6 +98,9 @@ export default function Chat() {
 
       {/* Right: Recommendations */}
       <div style={{ flex: 1, overflowY: 'auto', background: 'var(--bg-deep)', padding: '24px 20px' }}>
+        <div style={{ marginBottom: 10, fontSize: 11, color: panelSource === 'ai' ? '#48bb78' : '#d69e2e', letterSpacing: '.06em', textTransform: 'uppercase' }}>
+          Source: {panelSource === 'ai' ? 'AI Live' : 'Fallback'} ({panelReason})
+        </div>
         <div style={{ marginBottom: 24 }}>
           <div style={{
             fontFamily: 'var(--font-display)',
@@ -102,7 +139,20 @@ export default function Chat() {
             <div style={{ fontSize: 13, letterSpacing: '.1em' }}>Your recommendations appear here</div>
           </div>
         ) : recs.map((r, i) => (
-          <div key={r.id} className="card-3d" onClick={() => navigate(`/restaurant/${r.id}`)}
+          <div
+            key={r.id}
+            className="card-3d"
+            onClick={() => {
+              try {
+                const raw = sessionStorage.getItem('restaurantCache');
+                const current = raw ? JSON.parse(raw) : {};
+                current[String(r.id)] = r;
+                sessionStorage.setItem('restaurantCache', JSON.stringify(current));
+              } catch {
+                // Ignore storage failures in private mode or restricted environments.
+              }
+              navigate(`/restaurant/${r.id}`, { state: { restaurant: r } });
+            }}
             style={{ background: `linear-gradient(135deg,${r.color1},${r.color2})`, border: '1px solid rgba(255,255,255,0.05)', borderRadius: 14, overflow: 'hidden', cursor: 'pointer', marginBottom: 14, animation: `slideUp .5s ${i * .1}s both` }}>
             <div style={{ padding: '18px 18px 0', display: 'flex', justifyContent: 'space-between' }}>
               <div>

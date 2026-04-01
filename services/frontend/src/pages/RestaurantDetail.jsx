@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import RestaurantHero from '../components/restaurant/RestaurantHero';
 import BookingForm from '../components/booking/BookingForm';
 import GhostButton from '../components/ui/GhostButton';
@@ -17,14 +17,51 @@ const mock = {
   availableSlots: ['7:00 PM', '7:30 PM', '8:00 PM', '8:30 PM', '9:00 PM'],
 };
 
+function toDetailRestaurant(source, fallbackId) {
+  if (!source) return { ...mock, id: fallbackId || mock.id };
+
+  const priceText = String(source.price || source.price_range || '$$');
+  const dollarCount = Math.max(1, Math.min(4, (priceText.match(/\$/g) || []).length || 2));
+  const slots = Array.isArray(source.times)
+    ? source.times.map((t) => (String(t).includes('PM') || String(t).includes('AM') ? String(t) : `${t} PM`))
+    : mock.availableSlots;
+
+  return {
+    id: source.id || fallbackId || mock.id,
+    name: source.name || mock.name,
+    rating: Number(source.rating || mock.rating),
+    cuisine: source.cuisine || mock.cuisine,
+    priceRange: dollarCount,
+    address: source.description || source.address || `${source.tag || 'Unknown area'}`,
+    imageUrl: source.imageUrl || mock.imageUrl,
+    about: source.about || `${source.name || 'This place'} is a curated real-world recommendation${source.tag ? ` in ${source.tag}` : ''}.`,
+    availableSlots: slots,
+  };
+}
+
+function getCachedRestaurantById(id) {
+  try {
+    const raw = sessionStorage.getItem('restaurantCache');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed[String(id)] || null;
+  } catch {
+    return null;
+  }
+}
+
 function RestaurantDetail() {
+  const location = useLocation();
   const { id } = useParams();
   const [restaurant, setRestaurant] = useState(mock);
   const [activeTab, setActiveTab] = useState('Overview');
 
   useEffect(() => {
-    setRestaurant((prev) => ({ ...prev, id: Number(id) || prev.id }));
-  }, [id]);
+    const fromNavigation = location.state?.restaurant;
+    const fromCache = fromNavigation ? null : getCachedRestaurantById(id);
+    setRestaurant(toDetailRestaurant(fromNavigation || fromCache, id));
+  }, [id, location.state]);
 
   const tabs = useMemo(() => ['Overview', 'Menu', 'Photos', 'Reviews'], []);
 

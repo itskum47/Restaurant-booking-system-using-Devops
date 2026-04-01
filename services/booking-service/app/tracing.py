@@ -5,7 +5,6 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 
 
@@ -28,7 +27,5 @@ def setup_tracing(app, service_name: str) -> None:
 
     # Auto-instrument FastAPI (adds server span per request)
     FastAPIInstrumentor.instrument_app(app)
-    # Auto-instrument SQLAlchemy (adds db.query spans)
-    SQLAlchemyInstrumentor().instrument()
     # Auto-instrument Redis (adds redis.command spans)
     RedisInstrumentor().instrument()

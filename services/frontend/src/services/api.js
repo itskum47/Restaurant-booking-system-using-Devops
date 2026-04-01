@@ -30,14 +30,23 @@ api.interceptors.response.use(
 );
 
 export const aiService = {
-  processBooking: async (message, conversationHistory = []) => {
-    const response = await api.post('/v1/ai/booking', {
+  processBooking: async (message, conversationHistory = [], location = null) => {
+    const payload = {
       message,
       conversation_history: conversationHistory.map(msg => ({
         role: msg.role,
         content: msg.content
       }))
-    });
+    };
+    if (location) {
+      payload.location = location;
+    }
+    const response = await api.post('/v1/ai/booking', payload);
+    return response.data;
+  },
+
+  searchLocations: async (query) => {
+    const response = await api.get('/v1/ai/locations/search', { params: { q: query } });
     return response.data;
   },
 

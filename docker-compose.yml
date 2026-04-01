@@ -73,8 +73,14 @@ services:
       - AI_SERVICE_URL=http://ai-service:8001
       - RESTAURANT_SERVICE_URL=http://restaurant-service:3001
       - BOOKING_SERVICE_URL=http://booking-service:8002
+      - NVIDIA_API_KEY=${VITE_OPENAI_API_KEY}
+      - NVIDIA_API_URL=${VITE_OPENAI_API_URL}
+      - NVIDIA_MODEL=${VITE_OPENAI_MODEL}
+      - FOURSQUARE_API_KEY=${FOURSQUARE_API_KEY}
       - RATE_LIMIT_WINDOW_MS=60000
       - RATE_LIMIT_MAX_REQUESTS=100
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=secret123
     depends_on:
       postgres:
         condition: service_healthy
@@ -178,7 +184,8 @@ services:
       context: ./services/frontend
       dockerfile: Dockerfile
       args:
-        - VITE_GROQ_API_KEY=${VITE_GROQ_API_KEY}
+        - VITE_OPENAI_API_URL=${VITE_OPENAI_API_URL}
+        - VITE_OPENAI_MODEL=${VITE_OPENAI_MODEL}
     container_name: restaurant-frontend
     ports:
       - "80:80"
