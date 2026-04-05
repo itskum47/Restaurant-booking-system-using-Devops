@@ -53,7 +53,7 @@ jobs:
           done
 
       - name: Install Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@v5
 
       - name: Helm lint + render validation
         run: |
@@ -199,7 +199,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@v5
 
       - name: Configure kubectl (staging)
         uses: azure/k8s-set-context@v4
@@ -237,7 +237,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@v5
 
       - name: Configure kubectl (prod)
         uses: azure/k8s-set-context@v4
