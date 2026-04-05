@@ -1,0 +1,19 @@
+{{- if .Values.databaseMigrations.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-migration-sql
+  namespace: {{ .Values.global.namespace }}
+data:
+{{- $files := .Files.Glob "migrations/*.sql" }}
+{{- if not $files }}
+  V000__placeholder.sql: |
+    -- Placeholder migration to keep Flyway bootstrap deterministic.
+    SELECT 1;
+{{- else }}
+{{- range $path, $content := $files }}
+  {{ base $path }}: |
+{{ $content | toString | indent 4 }}
+{{- end }}
+{{- end }}
+{{- end }}

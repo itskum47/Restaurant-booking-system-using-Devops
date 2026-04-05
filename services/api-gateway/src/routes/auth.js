@@ -4,7 +4,11 @@ const jwt = require('jsonwebtoken');
 const { getPool } = require('../db/postgres');
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'dine-ai-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET is required and must be injected securely');
+}
 
 const CREDITS_EVENTS = {
   SIGNUP: { code: 'signup_bonus', amount: 100, description: 'Welcome bonus' },

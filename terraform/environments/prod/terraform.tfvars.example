@@ -1,0 +1,18 @@
+region            = "us-east-1"
+cluster_role_arn  = "arn:aws:iam::123456789012:role/eks-cluster-role"
+node_role_arn     = "arn:aws:iam::123456789012:role/eks-node-role"
+oidc_provider_arn = "arn:aws:iam::123456789012:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/XXXX"
+oidc_provider_url = "https://oidc.eks.us-east-1.amazonaws.com/id/XXXX"
+secret_arns = [
+  "arn:aws:secretsmanager:us-east-1:123456789012:secret:restaurant-booking/*"
+]
+private_subnets = {
+  a = { cidr = "10.40.1.0/24", az = "us-east-1a" }
+  b = { cidr = "10.40.2.0/24", az = "us-east-1b" }
+  c = { cidr = "10.40.3.0/24", az = "us-east-1c" }
+}
+public_subnets = {
+  a = { cidr = "10.40.101.0/24", az = "us-east-1a" }
+  b = { cidr = "10.40.102.0/24", az = "us-east-1b" }
+  c = { cidr = "10.40.103.0/24", az = "us-east-1c" }
+}

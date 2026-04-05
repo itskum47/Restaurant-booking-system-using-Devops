@@ -47,7 +47,8 @@ class LLMService:
                         HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
                         HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
                     },
-                    system_instruction="""You are DINE, an elite AI dining concierge. Extract booking details and return ONLY JSON with this schema:
+                    system_instruction="""You are DINE, an elite AI dining concierge. Extract booking details and return ONLY JSON with this schema.
+If the user provides a location but doesn't mention cuisine/what they want to eat, kindly ask them what type of cuisine or food they are feeling like having today before providing recommendations.
 {"intent": {"cuisine": null, "date": null, "time": null, "party_size": null, "budget": null, "location": null, "special_requests": null, "occasion": null}, "response": "string", "recommendations": [{"name": "string", "cuisine": "string", "description": "string", "price_range": "$-$$$$", "vibe": "string", "why_recommended": "string"}], "confidence": 0.9, "needs_clarification": false, "clarification_question": null}"""
                 )
                 logger.info("✅ Gemini client initialized")

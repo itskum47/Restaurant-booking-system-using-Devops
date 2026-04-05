@@ -4,11 +4,11 @@ import use3DTilt from '../../hooks/use3DTilt';
 import StarRating from '../ui/StarRating';
 import StatusBadge from '../ui/StatusBadge';
 
-function PriceDots({ level = 2 }) {
+function PriceDots({ level = 2, isIndia = false }) {
+  const symbol = isIndia ? '₹' : '$';
   return (
     <span className="text-xs tracking-[0.2em] text-[var(--accent-gold)]">
-      {'●'.repeat(level)}
-      <span className="text-[var(--text-muted)]">{'○'.repeat(Math.max(0, 4 - level))}</span>
+      {symbol.repeat(level)}
     </span>
   );
 }
@@ -86,7 +86,7 @@ function RestaurantCard({
         <div className="mb-4 flex items-center gap-2 text-xs uppercase tracking-[0.1em] text-[var(--text-secondary)]">
           <span>{cuisine}</span>
           <span>·</span>
-          <PriceDots level={priceRange} />
+          <PriceDots level={priceRange} isIndia={location && location.toLowerCase().includes('india')} />
           {distance ? (
             <>
               <span>·</span>

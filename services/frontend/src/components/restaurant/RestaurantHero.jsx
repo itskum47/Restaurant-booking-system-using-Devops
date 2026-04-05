@@ -14,26 +14,57 @@ function RestaurantHero({ restaurant }) {
   }, []);
 
   return (
-    <section className="relative h-[50vh] overflow-hidden rounded-2xl border border-[var(--border-subtle)]">
+    <section
+      style={{
+        position: 'relative',
+        height: '52vh',
+        minHeight: 320,
+        maxHeight: 620,
+        overflow: 'hidden',
+        borderRadius: 18,
+        border: '1px solid rgba(255,255,255,0.08)',
+        background: '#0f0c13',
+      }}
+    >
       <img
         src={restaurant.imageUrl}
         alt={restaurant.name}
-        className="h-full w-full object-cover"
-        style={{ transform: `translateY(${offset}px)` }}
+        style={{
+          height: '100%',
+          width: '100%',
+          objectFit: 'cover',
+          transform: `translateY(${offset}px)`,
+        }}
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-primary)] via-[rgba(10,10,11,0.55)] to-transparent" />
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'linear-gradient(to top, rgba(6,5,7,0.95), rgba(10,10,11,0.55), rgba(10,10,11,0.15))',
+        }}
+      />
 
-      <div className="absolute inset-x-0 bottom-0 p-6 md:p-10">
-        <div className="glass-card max-w-2xl rounded-2xl p-5 md:p-6">
-          <h1 className="mb-2 font-[var(--font-display)] text-5xl font-light tracking-[-0.03em] md:text-6xl">{restaurant.name}</h1>
-          <div className="mb-2 flex flex-wrap items-center gap-3 text-sm text-[var(--text-secondary)]">
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: 24 }}>
+        <div
+          style={{
+            maxWidth: 760,
+            borderRadius: 16,
+            padding: 18,
+            background: 'rgba(9,8,12,0.62)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+          }}
+        >
+          <h1 style={{ margin: '0 0 8px', fontFamily: 'var(--font-display)', fontSize: 44, fontWeight: 500, letterSpacing: '-0.02em' }}>{restaurant.name}</h1>
+          <div style={{ marginBottom: 8, display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--muted)' }}>
             <StarRating rating={restaurant.rating} />
             <span>·</span>
             <span>{restaurant.cuisine}</span>
             <span>·</span>
-            <span>{'$'.repeat(restaurant.priceRange)}</span>
+            <span>{(restaurant.address && restaurant.address.toLowerCase().includes('india') ? '₹' : '$').repeat(restaurant.priceRange)}</span>
           </div>
-          <p className="text-sm text-[var(--text-secondary)]">{restaurant.address}</p>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>{restaurant.address}</p>
         </div>
       </div>
     </section>

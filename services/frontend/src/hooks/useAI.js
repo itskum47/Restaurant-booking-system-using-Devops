@@ -10,6 +10,10 @@ const GATEWAY_LLM_URL = `${API_BASE}/public/llm/chat`;
 const PUBLIC_RESTAURANTS_URL = `${API_BASE}/public/restaurants`;
 const GLOBAL_RESTAURANTS_URL = `${API_BASE}/public/places/restaurants`;
 const LLM_MODEL = import.meta.env.VITE_OPENAI_MODEL || 'deepseek-ai/deepseek-v3.1';
+const parsedRecommendationLimit = Number(import.meta.env.VITE_RECOMMENDATION_LIMIT || 20);
+const RECOMMENDATION_LIMIT = Number.isFinite(parsedRecommendationLimit) && parsedRecommendationLimit > 0
+  ? Math.min(parsedRecommendationLimit, 20)
+  : 20;
 
 const COLOR_PALETTE = [
   ['#0d1a0d', '#1a2e1a'],
@@ -19,6 +23,131 @@ const COLOR_PALETTE = [
   ['#100a1a', '#1e1530'],
   ['#1a0d08', '#2e1a10'],
 ];
+
+function getTimeGreeting(date = new Date()) {
+  const hour = date.getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+function hasDiningKeywords(query) {
+  const q = String(query || '').toLowerCase();
+  return [
+    'restaurant', 'dinner', 'lunch', 'breakfast', 'food', 'eat', 'cuisine',
+    'table', 'book', 'reserve', 'hungry', 'sushi', 'pizza', 'pasta', 'rice',
+    'chinese', 'china', 'indian', 'italian', 'japanese', 'korean', 'french', 'thai', 'shrimp', 'prawn', 'seafood',
+    'chicken', 'momos', 'biryani', 'kebab', 'chaat', 'dosa', 'idli', 'vada', 'pav', 'paratha', 'paneer',
+    'mughlai', 'south indian', 'north indian', 'street food', 'craving', 'recommend', 'suggest',
+  ].some((keyword) => q.includes(keyword));
+}
+
+function isStreetFoodQuery(query) {
+  const q = String(query || '').toLowerCase();
+  return [
+    'chaat', 'street food', 'street-food', 'pani puri', 'golgappa', 'sev puri', 'dahi puri',
+    'papdi chaat', 'bhel', 'vada pav', 'pav bhaji', 'misal pav', 'bhature', 'bhatura',
+    'lassi', 'dhaba', 'snack', 'snacks', 'samosa', 'kachori', 'paratha', 'tikki',
+  ].some((keyword) => q.includes(keyword));
+}
+
+function isStreetFoodRestaurant(restaurant) {
+  const text = `${restaurant?.name || ''} ${restaurant?.cuisine || ''} ${restaurant?.tag || ''} ${restaurant?.description || ''}`.toLowerCase();
+  const excludedChains = [
+    'subway', 'kfc', 'mcdonald', 'burger king', 'domino', 'pizza hut', 'starbucks',
+  ];
+  if (excludedChains.some((chain) => text.includes(chain))) return false;
+
+  return [
+    'chaat', 'lassi', 'bhature', 'bhatura', 'pav', 'puri', 'golgappa',
+    'pani puri', 'sev puri', 'papdi chaat', 'bhel', 'paratha', 'samosa', 'kachori',
+    'dhaba', 'tikki', 'momos', 'chole bhature',
+  ].some((keyword) => text.includes(keyword));
+}
+
+function matchesQueryIntent(restaurant, query) {
+  const q = String(query || '').toLowerCase();
+  const text = `${restaurant?.name || ''} ${restaurant?.cuisine || ''} ${restaurant?.tag || ''} ${restaurant?.description || ''}`.toLowerCase();
+  const { cuisineTerms } = deriveQuerySignals(q);
+
+  if (isStreetFoodQuery(q)) {
+    return isStreetFoodRestaurant(restaurant);
+  }
+
+  if (cuisineTerms.some((term) => ['indian', 'south indian', 'north indian', 'mughlai', 'biryani', 'kebab'].includes(term))) {
+    return [
+      'indian', 'south indian', 'north indian', 'mughlai', 'biryani', 'kebab', 'thali', 'dhaba', 'chaat',
+      'dosa', 'idli', 'vada', 'pav', 'paneer', 'paratha', 'chai', 'lassi', 'snack', 'snacks',
+    ].some((keyword) => text.includes(keyword));
+  }
+
+  if (cuisineTerms.length > 0) {
+    return cuisineTerms.some((term) => text.includes(term));
+  }
+
+  return true;
+}
+
+function isLocationOnlyQuery(query) {
+  const q = String(query || '').toLowerCase().trim();
+  const { locationTerm, cuisineTerms } = deriveQuerySignals(q);
+
+  if (!locationTerm || cuisineTerms.length > 0) return false;
+
+  const words = q.split(/\s+/).filter(Boolean);
+  return words.length <= 3 && !hasDiningKeywords(q);
+}
+
+function isCravingWithoutLocationQuery(query) {
+  const q = String(query || '').toLowerCase().trim();
+  const { locationTerm, cuisineTerms } = deriveQuerySignals(q);
+  if (locationTerm) return false;
+  return cuisineTerms.length > 0 || isStreetFoodQuery(q);
+}
+
+function resolveConversationLocation(history, currentMessage) {
+  const recentMessages = [...(Array.isArray(history) ? history : []), { role: 'user', text: currentMessage }];
+
+  for (let index = recentMessages.length - 1; index >= 0; index -= 1) {
+    const message = recentMessages[index];
+    if (message?.role !== 'user') continue;
+
+    const text = String(message.text || '');
+    if (!isLocationOnlyQuery(text)) continue;
+
+    const { locationTerm } = deriveQuerySignals(text);
+    if (locationTerm) return locationTerm;
+  }
+
+  return '';
+}
+
+function resolveConversationCraving(history) {
+  const recentMessages = Array.isArray(history) ? history : [];
+
+  for (let index = recentMessages.length - 1; index >= 0; index -= 1) {
+    const message = recentMessages[index];
+    if (message?.role !== 'user') continue;
+
+    const text = String(message.text || '').trim();
+    if (!text) continue;
+
+    if (isCravingWithoutLocationQuery(text)) return text;
+    if (isLocationOnlyQuery(text)) continue;
+  }
+
+  return '';
+}
+
+function hadLocationNeededPrompt(history) {
+  const lastAiMessage = [...(Array.isArray(history) ? history : [])].reverse().find((message) => message?.role === 'ai');
+  return lastAiMessage?.sourceReason === 'fallback_location_needed' || lastAiMessage?.sourceReason === 'location_needed_for_craving';
+}
+
+function hadLocationClarification(history) {
+  const lastAiMessage = [...(Array.isArray(history) ? history : [])].reverse().find((message) => message?.role === 'ai');
+  return lastAiMessage?.sourceReason === 'fallback_location_clarification' || lastAiMessage?.sourceReason === 'location_clarification';
+}
 
 const CUISINE_EMOJI = {
   italian: '🍝',
@@ -46,7 +175,7 @@ function toCardRestaurant(restaurant, index) {
     id: restaurant.id,
     name: restaurant.name,
     cuisine: restaurant.cuisine || 'Cuisine',
-    price: restaurant.price_range || '$$',
+    price: (restaurant.address && restaurant.address.toLowerCase().includes('india') ? '₹' : '$').repeat(restaurant.price_range === '$' || restaurant.price_range === '₹' ? 1 : restaurant.price_range === '$$' || restaurant.price_range === '₹₹' ? 2 : restaurant.price_range === '$$$' || restaurant.price_range === '₹₹₹' ? 3 : restaurant.price_range === '$$$$' || restaurant.price_range === '₹₹₹₹' ? 4 : 2),
     rating,
     stars: Math.max(1, Math.min(3, Math.round(rating) - 2)),
     times: ['7:00', '8:00', '9:00'],
@@ -78,7 +207,7 @@ async function getGlobalRestaurants(query) {
     const collected = [];
 
     for (const candidateQuery of queries) {
-      const response = await fetch(`${GLOBAL_RESTAURANTS_URL}?q=${encodeURIComponent(candidateQuery)}&limit=8`);
+      const response = await fetch(`${GLOBAL_RESTAURANTS_URL}?q=${encodeURIComponent(candidateQuery)}&limit=${RECOMMENDATION_LIMIT}`);
       if (!response.ok) continue;
 
       const data = await response.json();
@@ -90,10 +219,10 @@ async function getGlobalRestaurants(query) {
         collected.push(restaurant);
       });
 
-      if (collected.length >= 8) break;
+      if (collected.length >= RECOMMENDATION_LIMIT) break;
     }
 
-    return collected.slice(0, 8).map((restaurant, index) => toCardRestaurant(restaurant, index + 20));
+    return collected.slice(0, RECOMMENDATION_LIMIT).map((restaurant, index) => toCardRestaurant(restaurant, index + 20));
   } catch {
     return [];
   }
@@ -127,7 +256,7 @@ function buildSystemPrompt(restaurants, globalCandidates = [], userQuery = '') {
     .join('\n');
 
   const globalList = globalCandidates
-    .slice(0, 8)
+    .slice(0, RECOMMENDATION_LIMIT)
     .map((r, i) => `G${i}: ${r.name} (${r.cuisine}, ${r.price}, ${r.tag}, rating ${r.rating})`)
     .join('\n');
 
@@ -334,14 +463,46 @@ function mergeRestaurants(primary, secondary) {
   return merged;
 }
 
-function ensureMinimumRecommendations(query, restaurants, base, globalCandidates = []) {
-  const current = Array.isArray(base) ? base : [];
-  if (!isDiningRequest(query)) return current.slice(0, 3);
+function getRelaxedFallback(query, candidates, limit = RECOMMENDATION_LIMIT) {
+  const pool = Array.isArray(candidates) ? candidates : [];
+  if (pool.length === 0) return [];
+
+  const q = String(query || '').toLowerCase();
+  const { cuisineTerms } = deriveQuerySignals(q);
+
+  if (isStreetFoodQuery(q)) {
+    const relaxedStreet = pool.filter((restaurant) => {
+      const text = `${restaurant?.name || ''} ${restaurant?.cuisine || ''} ${restaurant?.tag || ''} ${restaurant?.description || ''}`.toLowerCase();
+      return [
+        'indian', 'snack', 'snacks', 'street', 'sweets', 'food truck', 'dhaba',
+        'chaat', 'puri', 'pav', 'lassi', 'kebab', 'biryani',
+      ].some((token) => text.includes(token));
+    });
+
+    if (relaxedStreet.length > 0) return relaxedStreet.slice(0, limit);
+  }
+
+  if (cuisineTerms.length > 0) {
+    const byCuisine = pool.filter((restaurant) => {
+      const text = `${restaurant?.name || ''} ${restaurant?.cuisine || ''} ${restaurant?.tag || ''} ${restaurant?.description || ''}`.toLowerCase();
+      return cuisineTerms.some((term) => text.includes(term));
+    });
+
+    if (byCuisine.length > 0) return byCuisine.slice(0, limit);
+  }
+
+  return pool.slice(0, limit);
+}
+
+function ensureMinimumRecommendations(query, restaurants, base, globalCandidates = [], limit = RECOMMENDATION_LIMIT) {
+  const current = (Array.isArray(base) ? base : []).filter((restaurant) => matchesQueryIntent(restaurant, query));
+  if (!isDiningRequest(query)) return current.slice(0, limit);
 
   const { locationTerm, cuisineTerms } = deriveQuerySignals(query);
+  const cravingSpecific = cuisineTerms.length > 0 || isStreetFoodQuery(query);
 
-  const keyword = keywordMatchRestaurants(query, restaurants);
-  const globalKeyword = keywordMatchRestaurants(query, globalCandidates);
+  const keyword = keywordMatchRestaurants(query, restaurants, limit);
+  const globalKeyword = keywordMatchRestaurants(query, globalCandidates, limit);
 
   const globalLocation = locationTerm
     ? globalCandidates.filter((restaurant) => {
@@ -362,7 +523,7 @@ function ensureMinimumRecommendations(query, restaurants, base, globalCandidates
   // If query contains a location and we found no direct location matches,
   // still prioritize global places so recommendations stay geographically relevant.
   const locationFallback = locationTerm && globalPreferred.length === 0
-    ? globalCandidates.slice(0, 3)
+    ? globalCandidates.slice(0, limit)
     : [];
 
   // For location-specific queries, only global candidates should lead the shortlist.
@@ -371,69 +532,123 @@ function ensureMinimumRecommendations(query, restaurants, base, globalCandidates
     const scopedGlobalCuisine = cuisineTerms.length > 0
       ? scopedGlobal.filter((restaurant) => {
           const haystack = `${restaurant.name} ${restaurant.cuisine} ${restaurant.tag} ${restaurant.description}`.toLowerCase();
-          return cuisineTerms.some((term) => haystack.includes(term));
+          return cuisineTerms.some((term) => haystack.includes(term)) && matchesQueryIntent(restaurant, query);
         })
       : [];
-    const scopedGlobalKeyword = keywordMatchRestaurants(query, scopedGlobal);
-    const locationFirst = mergeRestaurants(
-      globalLocation,
-      mergeRestaurants(scopedGlobalCuisine, mergeRestaurants(scopedGlobalKeyword, locationFallback))
-    );
+    const scopedGlobalKeyword = keywordMatchRestaurants(query, scopedGlobal, limit).filter((restaurant) => matchesQueryIntent(restaurant, query));
+    const locationFirst = cravingSpecific
+      ? mergeRestaurants(
+          scopedGlobalCuisine,
+          mergeRestaurants(
+            scopedGlobalKeyword,
+            mergeRestaurants(
+              globalLocation.filter((restaurant) => matchesQueryIntent(restaurant, query)),
+              locationFallback.filter((restaurant) => matchesQueryIntent(restaurant, query))
+            )
+          )
+        )
+      : mergeRestaurants(
+          globalLocation.filter((restaurant) => matchesQueryIntent(restaurant, query)),
+          mergeRestaurants(scopedGlobalCuisine, mergeRestaurants(scopedGlobalKeyword, locationFallback))
+        );
 
     if (locationFirst.length > 0) {
-      return locationFirst.slice(0, 3);
+      return locationFirst.slice(0, limit);
     }
 
-    return mergeRestaurants(
+    const locationScoped = mergeRestaurants(
       current,
-      mergeRestaurants(keyword, [...restaurants].sort((a, b) => b.rating - a.rating).slice(0, 3))
-    ).slice(0, 3);
+      mergeRestaurants(
+        keyword.filter((restaurant) => matchesQueryIntent(restaurant, query)),
+        [...restaurants].filter((restaurant) => matchesQueryIntent(restaurant, query)).sort((a, b) => b.rating - a.rating).slice(0, limit)
+      )
+    ).slice(0, limit);
+
+    if (locationScoped.length > 0) return locationScoped;
+    return getRelaxedFallback(query, scopedGlobal, limit);
   }
 
-  const topRated = [...restaurants].sort((a, b) => b.rating - a.rating).slice(0, 3);
-  return mergeRestaurants(current, mergeRestaurants(globalPreferred, mergeRestaurants(keyword, topRated))).slice(0, 3);
+  const topRated = [...restaurants].filter((restaurant) => matchesQueryIntent(restaurant, query)).sort((a, b) => b.rating - a.rating).slice(0, limit);
+  const finalScoped = mergeRestaurants(
+    current,
+    mergeRestaurants(
+      globalPreferred.filter((restaurant) => matchesQueryIntent(restaurant, query)),
+      mergeRestaurants(keyword.filter((restaurant) => matchesQueryIntent(restaurant, query)), topRated)
+    )
+  ).slice(0, limit);
+
+  if (finalScoped.length > 0) return finalScoped;
+  return getRelaxedFallback(query, globalCandidates, limit);
 }
 
 function deriveQuerySignals(query) {
   const q = String(query || '').toLowerCase();
   const locationMatch = q.match(/\b(?:in|at|near)\s+([a-z\s.-]+)/i);
-  const locationTerm = locationMatch
+  let locationTerm = locationMatch
     ? locationMatch[1].replace(/[^a-z\s-]/gi, '').trim()
     : '';
 
   const cuisineTerms = [
     'sushi', 'japanese', 'chinese', 'indian', 'italian', 'korean', 'thai',
-    'seafood', 'pizza', 'pasta', 'french', 'mexican', 'burger',
+    'seafood', 'pizza', 'pasta', 'french', 'mexican', 'burger', 'chaat', 'dosa', 'idli', 'vada', 'pav',
+    'paratha', 'paneer', 'mughlai', 'biryani', 'kebab', 'street food', 'south indian', 'north indian',
   ].filter((term) => q.includes(term));
+
+  // Interpret short prompts like "delhi" as location intent.
+  if (!locationTerm) {
+    const words = q.split(/\s+/).filter(Boolean);
+    const hasBookingWords = ['book', 'reserve', 'table', 'tonight', 'dinner', 'lunch', 'breakfast'].some((word) => q.includes(word));
+    if (words.length > 0 && words.length <= 3 && !hasBookingWords && cuisineTerms.length === 0) {
+      locationTerm = words.join(' ').replace(/[^a-z\s-]/gi, '').trim();
+    }
+  }
 
   return { locationTerm, cuisineTerms };
 }
 
 function isDiningRequest(query) {
   const q = String(query || '').toLowerCase();
-  const keywords = [
-    'restaurant', 'dinner', 'lunch', 'breakfast', 'food', 'eat', 'cuisine',
-    'table', 'book', 'reserve', 'hungry', 'sushi', 'pizza', 'pasta', 'rice',
-    'chinese', 'china', 'indian', 'italian', 'japanese', 'korean', 'french', 'thai', 'shrimp', 'prawn', 'seafood',
-    'tonight', 'near me', 'recommend', 'suggest',
-  ];
-  return keywords.some((k) => q.includes(k));
+  if (hasDiningKeywords(q) && !isLocationOnlyQuery(q)) return true;
+
+  const { locationTerm, cuisineTerms } = deriveQuerySignals(q);
+  if (locationTerm || cuisineTerms.length > 0) return true;
+
+  return false;
 }
 
-function keywordMatchRestaurants(query, restaurants) {
+function keywordMatchRestaurants(query, restaurants, limit = RECOMMENDATION_LIMIT) {
   const q = String(query || '').toLowerCase();
   const normalized = q
     .replace(/\bchina\b/g, 'chinese')
     .replace(/\bshrimp\b/g, 'seafood')
     .replace(/\bprawn\b/g, 'seafood');
+  const { locationTerm } = deriveQuerySignals(q);
+  const stopTokens = new Set([
+    'in', 'at', 'near', 'me', 'restaurant', 'restaurants', 'place', 'places', 'best', 'good', 'top', 'for', 'the', 'a', 'an', 'of', 'to', 'and',
+    locationTerm,
+  ].filter(Boolean));
+  const meaningfulTokens = normalized
+    .split(/\s+/)
+    .filter((token) => token.length > 2 && !stopTokens.has(token));
 
   const direct = restaurants.filter((r) => {
+    if (!matchesQueryIntent(r, q)) return false;
     const text = `${r.name} ${r.cuisine} ${r.tag}`.toLowerCase();
-    return text.includes(normalized) || normalized.split(/\s+/).some((token) => token.length > 2 && text.includes(token));
+    return text.includes(normalized) || meaningfulTokens.some((token) => text.includes(token));
   });
 
-  if (direct.length > 0) return direct.slice(0, 3);
-  return [...restaurants].sort((a, b) => b.rating - a.rating).slice(0, 3);
+  if (direct.length > 0) return direct.slice(0, limit);
+
+  if (isStreetFoodQuery(q)) {
+    const streetFoodMatches = restaurants
+      .filter((restaurant) => isStreetFoodRestaurant(restaurant) && matchesQueryIntent(restaurant, q))
+      .sort((a, b) => b.rating - a.rating);
+
+    if (streetFoodMatches.length > 0) return streetFoodMatches.slice(0, limit);
+    return [];
+  }
+
+  return [...restaurants].sort((a, b) => b.rating - a.rating).slice(0, limit);
 }
 
 function isGreeting(query) {
@@ -444,14 +659,44 @@ function isGreeting(query) {
 function localFallback(query, restaurants, globalCandidates = []) {
   if (isGreeting(query)) {
     return {
-      text: "Good evening. I'm Maya, your personal dining concierge. Where shall we dine tonight?",
+      text: `${getTimeGreeting()}. I'm Maya, your personal dining concierge. What are we having today?`,
       restaurants: [],
       source: 'fallback',
       sourceReason: 'fallback_greeting',
     };
   }
 
+  if (isCravingWithoutLocationQuery(query)) {
+    return {
+      text: 'Great choice. Where are we having it?',
+      restaurants: [],
+      source: 'fallback',
+      sourceReason: 'fallback_location_needed',
+    };
+  }
+
+  if (isLocationOnlyQuery(query)) {
+    const { locationTerm } = deriveQuerySignals(query);
+    const city = locationTerm ? locationTerm.charAt(0).toUpperCase() + locationTerm.slice(1) : 'That area';
+    return {
+      text: `${city} noted. What are you craving - chaat, Mughlai, South Indian, or something else?`,
+      restaurants: [],
+      source: 'fallback',
+      sourceReason: 'fallback_location_clarification',
+    };
+  }
+
   if (!isDiningRequest(query)) {
+    if (globalCandidates.length > 0) {
+      const selected = globalCandidates.slice(0, RECOMMENDATION_LIMIT);
+      return {
+        text: 'Here are strong options I found based on your request.',
+        restaurants: selected,
+        source: 'ai',
+        sourceReason: 'fallback_from_global_search',
+      };
+    }
+
     return {
       text: "Tell me what cuisine, vibe, or area you want and I'll find the best available options.",
       restaurants: [],
@@ -487,9 +732,44 @@ export function useAI() {
   const chat = async (userMessage, history = []) => {
     setLoading(true);
     try {
+      const conversationLocation = resolveConversationLocation(history, userMessage);
+      const conversationCraving = resolveConversationCraving(history);
+      const needsCravingClarification = hadLocationClarification(history) && !hasDiningKeywords(userMessage) && deriveQuerySignals(userMessage).cuisineTerms.length === 0;
+
+      if (needsCravingClarification) {
+        const city = conversationLocation ? conversationLocation.charAt(0).toUpperCase() + conversationLocation.slice(1) : 'that area';
+        return {
+          text: `I still need a food craving for ${city}. Try chaat, Mughlai, South Indian, biryani, or something else.`,
+          restaurants: [],
+          source: 'fallback',
+          sourceReason: 'fallback_craving_clarification',
+        };
+      }
+
+      if (isCravingWithoutLocationQuery(userMessage) && !conversationLocation) {
+        return {
+          text: 'Great choice. Where are we having it?',
+          restaurants: [],
+          source: 'fallback',
+          sourceReason: 'location_needed_for_craving',
+        };
+      }
+
+      const locationOnlyReplyToCraving = isLocationOnlyQuery(userMessage) && hadLocationNeededPrompt(history) && Boolean(conversationCraving);
+
+      if (isLocationOnlyQuery(userMessage) && !locationOnlyReplyToCraving) {
+        return localFallback(userMessage, [], []);
+      }
+
+      const effectiveQuery = locationOnlyReplyToCraving
+        ? `${conversationCraving} in ${conversationLocation}`
+        : conversationLocation && !deriveQuerySignals(userMessage).locationTerm
+          ? `${userMessage} in ${conversationLocation}`
+          : userMessage;
+
       const restaurants = await getLiveRestaurantCatalog();
-      const globalCandidates = await getGlobalRestaurants(userMessage);
-      const systemPrompt = buildSystemPrompt(restaurants, globalCandidates, userMessage);
+      const globalCandidates = await getGlobalRestaurants(effectiveQuery);
+      const systemPrompt = buildSystemPrompt(restaurants, globalCandidates, effectiveQuery);
 
       const response = await fetch(GATEWAY_LLM_URL, {
         method: 'POST',
@@ -517,11 +797,15 @@ export function useAI() {
 
       const data = await response.json();
       const raw = data.choices?.[0]?.message?.content || '';
-      return parseResponse(raw, userMessage, restaurants, globalCandidates);
+      return parseResponse(raw, effectiveQuery, restaurants, globalCandidates);
     } catch (err) {
       console.error('Chat error:', err);
       const restaurants = await getLiveRestaurantCatalog();
-      const globalCandidates = await getGlobalRestaurants(userMessage);
+      const conversationLocation = resolveConversationLocation(history, userMessage);
+      const effectiveQuery = conversationLocation && !deriveQuerySignals(userMessage).locationTerm
+        ? `${userMessage} in ${conversationLocation}`
+        : userMessage;
+      const globalCandidates = await getGlobalRestaurants(effectiveQuery);
       return localFallback(userMessage, restaurants, globalCandidates);
     } finally {
       setLoading(false);

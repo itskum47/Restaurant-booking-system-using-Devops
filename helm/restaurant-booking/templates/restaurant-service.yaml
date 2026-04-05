@@ -30,10 +30,18 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 1001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: {{ .Values.restaurantService.name }}
         image: "{{ .Values.restaurantService.image.repository }}:{{ .Values.restaurantService.image.tag }}"
         imagePullPolicy: {{ .Values.restaurantService.image.pullPolicy }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
         ports:
         - containerPort: {{ .Values.restaurantService.service.port }}
           name: http
@@ -54,12 +62,21 @@ spec:
         env:
         - name: RESTAURANT_SERVICE_PORT
           value: "{{ .Values.restaurantService.service.port }}"
-        - name: DATABASE_URL
-          value: {{ include "restaurant-booking.postgresUrl" . | quote }}
+        - name: POSTGRES_HOST
+          value: "{{ .Release.Name }}-postgresql"
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_DB
+          value: "{{ .Values.postgresql.auth.database }}"
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.postgresSecretName }}
+              key: POSTGRES_USER
         - name: POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: restaurant-secrets
+              name: {{ .Values.secrets.postgresSecretName }}
               key: POSTGRES_PASSWORD
 ---
 apiVersion: v1

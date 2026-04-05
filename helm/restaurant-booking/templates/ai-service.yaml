@@ -30,10 +30,18 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 1001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: {{ .Values.aiService.name }}
         image: "{{ .Values.aiService.image.repository }}:{{ .Values.aiService.image.tag }}"
         imagePullPolicy: {{ .Values.aiService.image.pullPolicy }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
         ports:
         - containerPort: {{ .Values.aiService.service.port }}
           name: http
@@ -57,7 +65,7 @@ spec:
         - name: GEMINI_API_KEY
           valueFrom:
             secretKeyRef:
-              name: restaurant-secrets
+              name: {{ .Values.secrets.aiKeysSecretName }}
               key: GEMINI_API_KEY
         - name: GEMINI_MODEL
           value: "{{ .Values.aiService.env.GEMINI_MODEL | default "gemini-1.5-flash" }}"

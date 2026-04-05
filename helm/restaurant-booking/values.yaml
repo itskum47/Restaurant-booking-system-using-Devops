@@ -6,6 +6,15 @@ global:
   imageRegistry: ""
   imagePullSecrets: []
 
+secrets:
+  createInline: false
+  appSecretName: restaurant-secrets
+  postgresSecretName: restaurant-postgres-secret
+  mongoSecretName: restaurant-mongo-secret
+  redisSecretName: restaurant-redis-secret
+  aiKeysSecretName: restaurant-ai-keys
+  stripeSecretName: restaurant-stripe-secret
+
 # PostgreSQL Configuration
 # Passwords are injected via ExternalSecrets — no hardcoded values here.
 postgresql:
@@ -98,6 +107,24 @@ apiGateway:
   env:
     RATE_LIMIT_WINDOW_MS: "60000"
     RATE_LIMIT_MAX_REQUESTS: "100"
+    RATE_LIMIT_GLOBAL_RPS: "200"
+    RATE_LIMIT_USER_RPS: "60"
+    RATE_LIMIT_BURST_RPS: "20"
+    RATE_LIMIT_ABUSE_THRESHOLD: "10"
+    RATE_LIMIT_ABUSE_BLOCK_SECONDS: "900"
+    UPSTREAM_TIMEOUT_MS: "8000"
+    CB_AI_FAILURE_THRESHOLD: "5"
+    CB_AI_RECOVERY_MS: "30000"
+    CB_AI_SUCCESS_THRESHOLD: "2"
+    CB_BOOKING_FAILURE_THRESHOLD: "5"
+    CB_BOOKING_RECOVERY_MS: "30000"
+    CB_BOOKING_SUCCESS_THRESHOLD: "2"
+    CB_NOTIFICATION_FAILURE_THRESHOLD: "5"
+    CB_NOTIFICATION_RECOVERY_MS: "30000"
+    CB_NOTIFICATION_SUCCESS_THRESHOLD: "2"
+    CB_RESTAURANT_FAILURE_THRESHOLD: "5"
+    CB_RESTAURANT_RECOVERY_MS: "30000"
+    CB_RESTAURANT_SUCCESS_THRESHOLD: "2"
 
 # AI Service
 aiService:
@@ -254,3 +281,9 @@ monitoring:
     enabled: true
   grafana:
     enabled: true
+
+databaseMigrations:
+  enabled: true
+  image: flyway/flyway:10.16.0
+  timeoutSeconds: 300
+  backoffLimit: 1

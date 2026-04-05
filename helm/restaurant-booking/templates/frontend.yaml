@@ -26,10 +26,18 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 101
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: {{ .Values.frontend.name }}
         image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
         imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
         ports:
         - containerPort: {{ .Values.frontend.service.port }}
           name: http

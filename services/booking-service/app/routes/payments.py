@@ -3,6 +3,7 @@ logger = structlog.get_logger(__name__)
 
 import stripe
 import os
+import asyncio
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 from typing import Optional
@@ -11,8 +12,11 @@ import aiohttp
 
 from app.db.mongo import get_database
 
-# Initialize Stripe
-stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "sk_test_demo")
+# Initialize Stripe with strict secret requirement.
+stripe_secret_key = os.getenv("STRIPE_SECRET_KEY")
+if not stripe_secret_key:
+    raise RuntimeError("STRIPE_SECRET_KEY is required and must be injected securely")
+stripe.api_key = stripe_secret_key
 
 router = APIRouter()
 
@@ -26,6 +30,7 @@ class PaymentIntentRequest(BaseModel):
     guest_name: Optional[str] = None
 
 class PaymentConfirmRequest(BaseModel):
+    idempotency_key: Optional[str] = None
     payment_intent_id: str
     restaurant_name: str
     cuisine: str
@@ -91,8 +96,23 @@ async def confirm_payment(request: PaymentConfirmRequest):
                 detail=f"Payment not completed. Status: {intent.status}"
             )
         
+        db = get_database()
+
+        # Idempotency protection for client retries.
+        if request.idempotency_key:
+            existing = await db.bookings.find_one({"idempotency_key": request.idempotency_key})
+            if existing:
+                existing["id"] = str(existing["_id"])
+                return {
+                    "success": True,
+                    "message": "Booking already confirmed",
+                    "payment_intent_id": existing.get("payment_intent_id"),
+                    "booking": existing,
+                }
+
         # Payment successful - create booking record in MongoDB
         booking_data = {
+            "idempotency_key": request.idempotency_key,
             "restaurant_name": request.restaurant_name,
             "cuisine": request.cuisine,
             "date": request.date,
@@ -108,33 +128,55 @@ async def confirm_payment(request: PaymentConfirmRequest):
             "created_at": datetime.utcnow().isoformat(),
         }
 
-        db = get_database()
         result = await db.bookings.insert_one(booking_data)
         booking_id = str(result.inserted_id)
 
         # Send booking confirmation email via notification service.
         notification_url = os.getenv("NOTIFICATION_SERVICE_URL", "http://notification-service:3003")
         try:
-            async with aiohttp.ClientSession() as session:
-                await session.post(
-                    f"{notification_url}/send-booking-confirmation",
-                    json={
-                        "email": request.guest_email,
-                        "guest_name": request.guest_name,
-                        "booking": {
-                            "bookingId": booking_id,
-                            "restaurantName": request.restaurant_name,
-                            "date": request.date,
-                            "time": request.time,
-                            "partySize": request.party_size,
-                            "location": "Restaurant Location",
-                        },
-                    },
-                    timeout=aiohttp.ClientTimeout(total=4),
-                )
-        except Exception:
+            payload = {
+                "email": request.guest_email,
+                "guest_name": request.guest_name,
+                "booking": {
+                    "bookingId": booking_id,
+                    "restaurantName": request.restaurant_name,
+                    "date": request.date,
+                    "time": request.time,
+                    "partySize": request.party_size,
+                    "location": "Restaurant Location",
+                },
+            }
+
+            attempt = 0
+            max_attempts = 3
+            timeout = aiohttp.ClientTimeout(total=4)
+            while attempt < max_attempts:
+                attempt += 1
+                try:
+                    async with aiohttp.ClientSession(timeout=timeout) as session:
+                        async with session.post(
+                            f"{notification_url}/send-booking-confirmation",
+                            json=payload,
+                        ) as resp:
+                            if resp.status < 500:
+                                break
+                            raise RuntimeError(f"notification-service returned {resp.status}")
+                except Exception as notify_err:
+                    if attempt >= max_attempts:
+                        logger.warning(
+                            "notification delivery failed after retries",
+                            booking_id=booking_id,
+                            error=str(notify_err),
+                        )
+                        break
+                    await asyncio.sleep(attempt * 0.5)
+        except Exception as notify_outer_err:
             # Do not fail booking if email service is unavailable.
-            pass
+            logger.warning(
+                "notification delivery skipped",
+                booking_id=booking_id,
+                error=str(notify_outer_err),
+            )
         
         return {
             "success": True,

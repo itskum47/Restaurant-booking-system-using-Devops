@@ -5,8 +5,15 @@ import BubbleAI from '../components/chat/BubbleAI';
 import BubbleUser from '../components/chat/BubbleUser';
 import TypingDots from '../components/chat/TypingDots';
 
+function getTimeGreeting(date = new Date()) {
+  const hour = date.getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
 export default function Chat() {
-  const [messages, setMessages] = useState([{ role: 'ai', text: "Good evening. I'm your personal dining concierge. Where shall we dine tonight?", source: 'ai', sourceReason: 'welcome' }]);
+  const [messages, setMessages] = useState([{ role: 'ai', text: `${getTimeGreeting()}. I'm your personal dining concierge. What are we having today?`, source: 'ai', sourceReason: 'welcome' }]);
   const [input, setInput] = useState('');
   const [recs, setRecs] = useState([]);
   const { chat, loading } = useAI();

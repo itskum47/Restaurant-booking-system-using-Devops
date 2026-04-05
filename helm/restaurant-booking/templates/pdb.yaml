@@ -1,0 +1,65 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-gateway-pdb
+  namespace: {{ .Values.global.namespace }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.apiGateway.name }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ai-service-pdb
+  namespace: {{ .Values.global.namespace }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.aiService.name }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: restaurant-service-pdb
+  namespace: {{ .Values.global.namespace }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.restaurantService.name }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: booking-service-pdb
+  namespace: {{ .Values.global.namespace }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.bookingService.name }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: notification-service-pdb
+  namespace: {{ .Values.global.namespace }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.notificationService.name }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend-pdb
+  namespace: {{ .Values.global.namespace }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.frontend.name }}

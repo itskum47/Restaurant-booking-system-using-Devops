@@ -30,10 +30,18 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 1001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: {{ .Values.bookingService.name }}
         image: "{{ .Values.bookingService.image.repository }}:{{ .Values.bookingService.image.tag }}"
         imagePullPolicy: {{ .Values.bookingService.image.pullPolicy }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
         ports:
         - containerPort: {{ .Values.bookingService.service.port }}
           name: http
@@ -55,14 +63,20 @@ spec:
         - name: BOOKING_SERVICE_PORT
           value: "{{ .Values.bookingService.service.port }}"
         - name: MONGO_URL
-          value: {{ include "restaurant-booking.mongoUrl" . | quote }}
-        - name: REDIS_URL
-          value: {{ include "restaurant-booking.redisUrl" . | quote }}
-        - name: MONGO_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: restaurant-secrets
-              key: MONGO_PASSWORD
+              name: {{ .Values.secrets.mongoSecretName }}
+              key: MONGO_URL
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.redisSecretName }}
+              key: REDIS_URL
+        - name: STRIPE_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.stripeSecretName }}
+              key: STRIPE_SECRET_KEY
 ---
 apiVersion: v1
 kind: Service

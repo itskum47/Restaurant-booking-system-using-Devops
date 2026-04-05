@@ -1,6 +1,10 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dine-ai-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET is required and must be injected securely');
+}
 
 const authMiddleware = (req, res, next) => {
   // Skip auth for health/metrics endpoints
@@ -12,12 +16,6 @@ const authMiddleware = (req, res, next) => {
   const authHeader = req.headers.authorization;
   
   if (!authHeader) {
-    // For development, allow unauthenticated access
-    if (process.env.NODE_ENV === 'development') {
-      console.warn('⚠️  No auth token provided (development mode - allowing access)');
-      return next();
-    }
-    
     return res.status(401).json({
       error: 'Unauthorized',
       message: 'No authorization token provided'
@@ -34,12 +32,6 @@ const authMiddleware = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
-    // For development, log error but allow access
-    if (process.env.NODE_ENV === 'development') {
-      console.warn('⚠️  Invalid token (development mode - allowing access):', error.message);
-      return next();
-    }
-
     return res.status(401).json({
       error: 'Unauthorized',
       message: 'Invalid or expired token'

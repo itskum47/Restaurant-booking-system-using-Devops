@@ -7,6 +7,8 @@ from typing import List, Optional, Dict, Any
 import os
 import httpx
 from datetime import datetime, timedelta
+from app.utils.circuit_breaker import AsyncCircuitBreaker
+from app.utils.retry import retry_async
 
 from app.services.llm_service import llm_service as gemini_service
 from app.services.places_service import places_service
@@ -19,6 +21,13 @@ from app.metrics.prometheus import (
 import time
 
 router = APIRouter()
+
+restaurant_breaker = AsyncCircuitBreaker(
+    name="restaurant-service",
+    failure_threshold=int(os.getenv("CB_RESTAURANT_FAILURE_THRESHOLD", "5")),
+    recovery_timeout_seconds=int(os.getenv("CB_RESTAURANT_RECOVERY_SECONDS", "30")),
+    half_open_success_threshold=int(os.getenv("CB_RESTAURANT_HALF_OPEN_SUCCESS", "2")),
+)
 
 class BookingRequest(BaseModel):
     message: str = Field(..., description="Natural language booking request")
@@ -183,27 +192,38 @@ async def get_restaurant_recommendations(criteria: Dict[str, Any]) -> List[Dict[
         if criteria.get("location"):
             params["city"] = criteria["location"]
         
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(
-                f"{restaurant_service_url}/api/v1/restaurants",
-                params=params
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                restaurants = data.get("restaurants", [])
-                
-                # Add available time slots for the requested date
-                for restaurant in restaurants:
-                    restaurant["available_slots"] = generate_time_slots(
-                        criteria.get("date"),
-                        criteria.get("party_size", 2)
-                    )
-                
-                return restaurants[:5]  # Return top 5 recommendations
-            else:
-                logger.info(f"Restaurant service returned status {response.status_code}")
-                return get_mock_recommendations(criteria)
+        timeout_seconds = float(os.getenv("UPSTREAM_TIMEOUT_SECONDS", "8"))
+
+        async def call_restaurant_service():
+            async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+                return await client.get(
+                    f"{restaurant_service_url}/api/v1/restaurants",
+                    params=params
+                )
+
+        response = await restaurant_breaker.call(
+            lambda: retry_async(call_restaurant_service, attempts=3, base_delay=0.2),
+            fallback=lambda: None,
+        )
+
+        if response is None:
+            return get_mock_recommendations(criteria)
+
+        if response.status_code == 200:
+            data = response.json()
+            restaurants = data.get("restaurants", [])
+
+            # Add available time slots for the requested date
+            for restaurant in restaurants:
+                restaurant["available_slots"] = generate_time_slots(
+                    criteria.get("date"),
+                    criteria.get("party_size", 2)
+                )
+
+            return restaurants[:5]  # Return top 5 recommendations
+
+        logger.info(f"Restaurant service returned status {response.status_code}")
+        return get_mock_recommendations(criteria)
                 
     except Exception as e:
         logger.error(f"Error fetching recommendations: {e}")

@@ -6,6 +6,7 @@ const API_URL = import.meta.env.VITE_OPENAI_API_URL || "https://integrate.api.nv
 const MODEL = import.meta.env.VITE_OPENAI_MODEL || "minimaxai/minimax-m2.5";
 
 const SYSTEM_PROMPT = `You are DINE, a luxury AI dining concierge.
+If the user mentions a location but doesn't mention what they want to eat, kindly ask them what type of cuisine or what they are having today before providing any recommendations.
 Always respond with ONLY valid JSON in this exact format, no markdown:
 {
   "response": "warm conversational reply (2-3 sentences)",
@@ -31,7 +32,8 @@ Always respond with ONLY valid JSON in this exact format, no markdown:
     "location": null
   }
 }
-Always return exactly 3 recommendations. Return ONLY the JSON object.`;
+If you are still asking for cuisine preference, leave the recommendations array empty.
+Otherwise, always return exactly 3 recommendations. Return ONLY the JSON object.`;
 
 export async function askOpenAI(userMessage, history = []) {
   console.log("🤖 Calling OpenAI (NVIDIA):", userMessage);

@@ -36,9 +36,15 @@ spec:
 
               check "api-gateway-health"    "$BASE/health"              200
               check "api-gateway-readiness" "$BASE/ready"               200
-              check "bookings-endpoint"     "$BASE/api/bookings"        401
-              check "restaurants-endpoint"  "$BASE/api/restaurants"     200
+              check "bookings-endpoint"     "$BASE/api/v1/bookings"     401
+              check "restaurants-endpoint"  "$BASE/api/v1/restaurants"  200
               check "ai-parse-endpoint"     "http://ai-service.restaurant-system.svc.cluster.local:8001/health" 200
+
+              curl -sS -X POST "$BASE/api/v1/ai/booking" \
+                -H "Content-Type: application/json" \
+                -d '{"message":"table for 2 italian tonight"}' >/dev/null
+
+              check "notification-health" "http://notification-service.restaurant-system.svc.cluster.local:3003/health" 200
 
               echo "--- Smoke tests PASSED ---"
           resources:

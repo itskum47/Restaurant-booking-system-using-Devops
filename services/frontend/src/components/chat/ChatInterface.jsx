@@ -7,10 +7,17 @@ import ChatInput from './ChatInput';
 import RestaurantCard from '../restaurant/RestaurantCard';
 import LoadingShimmer from '../ui/LoadingShimmer';
 
+function getTimeGreeting(date = new Date()) {
+  const hour = date.getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
 const starterMessage = {
   id: 1,
   role: 'assistant',
-  content: "Good evening. I'm your personal dining concierge. Where shall we dine tonight?",
+  content: `${getTimeGreeting()}. I'm your personal dining concierge. What are we having today?`,
   timestamp: new Date().toISOString(),
 };
 
@@ -66,7 +73,7 @@ function ChatInterface() {
         name: rec.name,
         cuisine: rec.cuisine || 'Contemporary',
         rating: Number(rec.rating || 4.7),
-        priceRange: rec.price_range === '$' ? 1 : rec.price_range === '$$' ? 2 : rec.price_range === '$$$' ? 3 : 4,
+        priceRange: ['$', '₹'].some(c => rec.price_range === c) ? 1 : ['$$', '₹₹'].some(c => rec.price_range === c) ? 2 : ['$$$', '₹₹₹'].some(c => rec.price_range === c) ? 3 : 4,
         imageUrl: `https://images.unsplash.com/photo-${1514933651103 + index}?auto=format&fit=crop&w=800&q=80`,
         availableSlots: rec.available_time ? [rec.available_time] : ['7:30 PM', '8:00 PM', '8:30 PM'],
         distance: '2.4 mi',

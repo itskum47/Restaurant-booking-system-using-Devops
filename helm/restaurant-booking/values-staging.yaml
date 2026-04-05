@@ -1,0 +1,44 @@
+# Staging environment values
+
+apiGateway:
+  replicaCount: 2
+  autoscaling:
+    minReplicas: 2
+    maxReplicas: 6
+
+aiService:
+  replicaCount: 2
+  autoscaling:
+    minReplicas: 2
+    maxReplicas: 6
+
+restaurantService:
+  replicaCount: 2
+  autoscaling:
+    minReplicas: 2
+    maxReplicas: 6
+
+bookingService:
+  replicaCount: 2
+  autoscaling:
+    minReplicas: 2
+    maxReplicas: 6
+
+notificationService:
+  replicaCount: 2
+  autoscaling:
+    minReplicas: 2
+    maxReplicas: 4
+
+frontend:
+  replicaCount: 2
+  autoscaling:
+    minReplicas: 2
+    maxReplicas: 6
+
+ingress:
+  enabled: true
+  host: staging.restaurant-booking.example.com
+
+global:
+  imageTag: "staging"

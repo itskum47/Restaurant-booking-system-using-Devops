@@ -1,13 +1,15 @@
 import structlog
 logger = structlog.get_logger(__name__)
 
-from fastapi import APIRouter, HTTPException, status, Response
+from fastapi import APIRouter, HTTPException, status, Response, Request
 from typing import List
 import time
 import os
 import json
 from datetime import datetime
 import aiohttp
+from app.utils.circuit_breaker import AsyncCircuitBreaker
+from app.utils.retry import retry_async
 
 from app.models.booking import Booking, BookingCreate, BookingUpdate, BookingCancel
 from app.db.mongo import get_database
@@ -21,6 +23,13 @@ except ImportError:
     REDIS_AVAILABLE = False
 
 router = APIRouter()
+
+notification_breaker = AsyncCircuitBreaker(
+    name="notification-service",
+    failure_threshold=int(os.getenv("CB_NOTIFICATION_FAILURE_THRESHOLD", "5")),
+    recovery_timeout_seconds=int(os.getenv("CB_NOTIFICATION_RECOVERY_SECONDS", "30")),
+    half_open_success_threshold=int(os.getenv("CB_NOTIFICATION_HALF_OPEN_SUCCESS", "2")),
+)
 
 # Placeholders for metrics (will be injected from main.py)
 bookings_created_total = None
@@ -82,31 +91,54 @@ async def send_booking_confirmation_email(guest_email: str, guest_name: str, boo
             }
         }
         
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{notification_url}/send-booking-confirmation",
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=5)
-            ) as resp:
-                if resp.status == 200:
-                    logger.info(f"✅ Booking confirmation email sent to {guest_email}")
-                else:
-                    logger.error(f"⚠️  Failed to send booking email: {resp.status}")
+        timeout_seconds = float(os.getenv("UPSTREAM_TIMEOUT_SECONDS", "8"))
+
+        async def send_once():
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout_seconds)) as session:
+                async with session.post(
+                    f"{notification_url}/send-booking-confirmation",
+                    json=payload,
+                ) as resp:
+                    if resp.status >= 500:
+                        raise RuntimeError(f"notification-service returned {resp.status}")
+                    return resp.status
+
+        status_code = await notification_breaker.call(
+            lambda: retry_async(send_once, attempts=3, base_delay=0.25),
+            fallback=lambda: 503,
+        )
+
+        if status_code == 200:
+            logger.info(f"✅ Booking confirmation email sent to {guest_email}")
+        else:
+            logger.error(f"⚠️  Failed to send booking email: {status_code}")
     except Exception as e:
         logger.error(f"⚠️  Error sending booking confirmation email: {e}")
         # Don't raise - continue with booking even if email fails
 
 @router.post("/", response_model=dict)
-async def create_booking(booking: BookingCreate, response: Response):
+async def create_booking(booking: BookingCreate, response: Response, request: Request):
     """Create a new booking."""
     start_time = time.time()
     
     try:
         db = get_database()
         bookings_collection = db.bookings
+
+        idempotency_key = request.headers.get("x-idempotency-key")
+        if idempotency_key:
+            existing = await bookings_collection.find_one({"idempotency_key": idempotency_key})
+            if existing:
+                existing["_id"] = str(existing["_id"])
+                return {
+                    "message": "Booking already created",
+                    "booking_id": existing["_id"],
+                    "booking": existing,
+                }
         
         # Convert to dict and add  creation timestamp
         booking_dict = booking.model_dump()
+        booking_dict["idempotency_key"] = idempotency_key
         booking_dict["created_at"] = datetime.utcnow().isoformat()
         
         if booking.party_size > 6:

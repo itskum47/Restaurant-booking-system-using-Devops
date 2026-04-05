@@ -7,6 +7,7 @@ const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash-lite:generateContent?key=${API_KEY}`;
 
 const SYSTEM_PROMPT = `You are DINE, a luxury AI dining concierge.
+If the user provides a location but doesn't mention what they want to eat, kindly ask them what type of cuisine or what they are having today before providing any recommendations.
 Always respond with ONLY valid JSON in this exact format, no markdown:
 {
   "response": "warm conversational reply (2-3 sentences)",
@@ -32,7 +33,8 @@ Always respond with ONLY valid JSON in this exact format, no markdown:
     "location": null
   }
 }
-Always return exactly 3 recommendations. Return ONLY the JSON object.`;
+If you are still asking for cuisine preference, leave the recommendations array empty.
+Otherwise, always return exactly 3 recommendations. Return ONLY the JSON object.`;
 
 export async function askGemini(userMessage, history = []) {
   console.log("🤖 Calling Gemini REST API (v1):", userMessage);

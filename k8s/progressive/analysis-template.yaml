@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: error-rate-check
+  namespace: restaurant-system-prod
+spec:
+  metrics:
+    - name: error-rate
+      interval: 1m
+      successCondition: result[0] < 0.05
+      provider:
+        prometheus:
+          address: http://prometheus-kube-prometheus-prometheus.monitoring:9090
+          query: |
+            (
+              sum(rate(http_requests_total{status=~"5..",service="api-gateway"}[5m]))
+              /
+              sum(rate(http_requests_total{service="api-gateway"}[5m]))
+            )

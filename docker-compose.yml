@@ -14,9 +14,9 @@ services:
     image: postgres:15-alpine
     container_name: restaurant-postgres
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-restaurant_db}
-      POSTGRES_USER: ${POSTGRES_USER:-admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret123}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
@@ -32,9 +32,7 @@ services:
   mongodb:
     image: mongo:6.0
     container_name: restaurant-mongodb
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-admin}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-secret123}
+    command: mongod --noauth
     volumes:
       - mongo-data:/data/db
     networks:
@@ -68,8 +66,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=development
-      - JWT_SECRET=${JWT_SECRET:-supersecretkey}
+      - NODE_ENV=${NODE_ENV}
+      - JWT_SECRET=${JWT_SECRET}
       - AI_SERVICE_URL=http://ai-service:8001
       - RESTAURANT_SERVICE_URL=http://restaurant-service:3001
       - BOOKING_SERVICE_URL=http://booking-service:8002
@@ -79,8 +77,8 @@ services:
       - FOURSQUARE_API_KEY=${FOURSQUARE_API_KEY}
       - RATE_LIMIT_WINDOW_MS=60000
       - RATE_LIMIT_MAX_REQUESTS=100
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=secret123
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
@@ -98,9 +96,9 @@ services:
     ports:
       - "8001:8001"
     environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-mock}
-      - OPENAI_MODEL=${OPENAI_MODEL:-llama3-8b-8192}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.groq.com/openai/v1}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
       - RESTAURANT_SERVICE_URL=http://restaurant-service:3001
       - AI_SERVICE_PORT=8001
       - AI_MAX_TOKENS=500
@@ -117,13 +115,13 @@ services:
     ports:
       - "3001:3001"
     environment:
-      - NODE_ENV=development
-      - DATABASE_URL=postgresql://admin:secret123@postgres:5432/restaurant_db
+      - NODE_ENV=${NODE_ENV}
+      - DATABASE_URL=${DATABASE_URL}
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_DB=restaurant_db
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=secret123
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - RESTAURANT_SERVICE_PORT=3001
     depends_on:
       postgres:
@@ -140,12 +138,12 @@ services:
     ports:
       - "8002:8002"
     environment:
-      - MONGO_URL=mongodb://admin:secret123@mongodb:27017
-      - MONGO_DB=bookings
+      - MONGO_URL=${MONGO_URL}
+      - MONGO_DB=${MONGO_DB}
       - REDIS_URL=redis://redis:6379
       - BOOKING_SERVICE_PORT=8002
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-sk_test_demo}
-      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-whsec_demo}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
       - NOTIFICATION_SERVICE_URL=http://notification-service:3003
     depends_on:
       mongodb:
@@ -167,11 +165,11 @@ services:
       - REDIS_URL=redis://redis:6379
       - NOTIFICATION_SERVICE_PORT=3003
       - NOTIFICATION_EMAIL_FROM=noreply@restaurant-booking.com
-      - SMTP_HOST=${SMTP_HOST:-smtp.mailtrap.io}
-      - SMTP_PORT=${SMTP_PORT:-465}
-      - SMTP_USER=${SMTP_USER:-user}
-      - SMTP_PASS=${SMTP_PASS:-pass}
-      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:74}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - FRONTEND_URL=${FRONTEND_URL}
     depends_on:
       redis:
         condition: service_healthy

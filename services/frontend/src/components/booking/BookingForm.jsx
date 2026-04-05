@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { bookingService } from '../../services/api';
-import GoldButton from '../ui/GoldButton';
 import AvailabilitySlots from '../restaurant/AvailabilitySlots';
 
 function BookingForm({ restaurant, defaultSlot = '8:00 PM' }) {
@@ -65,26 +64,26 @@ function BookingForm({ restaurant, defaultSlot = '8:00 PM' }) {
   };
 
   return (
-    <form onSubmit={submit} className="glass-card rounded-2xl border border-[var(--border-subtle)] p-6">
-      <h3 className="mb-5 font-[var(--font-display)] text-4xl">Book A Table</h3>
-      <div className="grid gap-4 md:grid-cols-3">
-        <label className="text-sm text-[var(--text-secondary)]">
+    <form onSubmit={submit} style={{ borderRadius: 24, border: '1px solid rgba(255,255,255,0.08)', padding: 24, background: 'rgba(9,8,12,0.78)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}>
+      <h3 style={{ marginBottom: 20, fontFamily: 'var(--font-display)', fontSize: 32, marginTop: 0 }}>Book A Table</h3>
+      <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+        <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column' }}>
           Date
           <input
             type="date"
             value={date}
             min={new Date().toISOString().slice(0, 10)}
             onChange={(event) => setDate(event.target.value)}
-            className="mt-2 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-secondary)] px-3 py-2 text-[var(--text-primary)]"
+            style={{ marginTop: 8, width: '100%', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', padding: '10px 12px', color: 'var(--text-primary)', fontSize: 13, fontFamily: 'inherit' }}
           />
         </label>
 
-        <label className="text-sm text-[var(--text-secondary)]">
+        <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column' }}>
           Time
           <select
             value={time}
             onChange={(event) => setTime(event.target.value)}
-            className="mt-2 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-secondary)] px-3 py-2 text-[var(--text-primary)]"
+            style={{ marginTop: 8, width: '100%', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', padding: '10px 12px', color: 'var(--text-primary)', fontSize: 13, fontFamily: 'inherit', cursor: 'pointer' }}
           >
             {slots.map((slot) => (
               <option key={slot.time} value={slot.time}>
@@ -94,12 +93,12 @@ function BookingForm({ restaurant, defaultSlot = '8:00 PM' }) {
           </select>
         </label>
 
-        <label className="text-sm text-[var(--text-secondary)]">
+        <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column' }}>
           Guests
           <select
             value={partySize}
             onChange={(event) => setPartySize(Number(event.target.value))}
-            className="mt-2 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-secondary)] px-3 py-2 text-[var(--text-primary)]"
+            style={{ marginTop: 8, width: '100%', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', padding: '10px 12px', color: 'var(--text-primary)', fontSize: 13, fontFamily: 'inherit', cursor: 'pointer' }}
           >
             {Array.from({ length: 12 }).map((_, index) => (
               <option key={index + 1} value={index + 1}>
@@ -110,14 +109,33 @@ function BookingForm({ restaurant, defaultSlot = '8:00 PM' }) {
         </label>
       </div>
 
-      <div className="mt-6">
-        <p className="mb-2 text-xs uppercase tracking-[0.1em] text-[var(--text-secondary)]">Available Slots</p>
+      <div style={{ marginTop: 24 }}>
+        <p style={{ marginBottom: 8, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-secondary)', margin: 0 }}>Available Slots</p>
         <AvailabilitySlots slots={slots} selectedSlot={time} onSelect={setTime} />
       </div>
 
-      <GoldButton type="submit" className="mt-6 w-full" disabled={submitting}>
+      <button
+        type="submit"
+        disabled={submitting}
+        style={{
+          marginTop: 24,
+          width: '100%',
+          padding: '12px 26px',
+          background: submitting ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#c9a84c,#f0c96a)',
+          border: 'none',
+          borderRadius: 8,
+          color: submitting ? '#2a2530' : '#060507',
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: '.12em',
+          textTransform: 'uppercase',
+          cursor: submitting ? 'not-allowed' : 'pointer',
+          transition: 'all .3s',
+          boxShadow: submitting ? 'none' : '0 6px 24px rgba(201,168,76,0.25)',
+        }}
+      >
         {submitting ? 'Reserving...' : 'Reserve Now →'}
-      </GoldButton>
+      </button>
     </form>
   );
 }

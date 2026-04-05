@@ -1,0 +1,53 @@
+{
+  "title": "Enterprise SLO Overview",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Availability (5m)",
+      "targets": [
+        {
+          "expr": "service:http_request_success_rate_5m",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
+    },
+    {
+      "type": "timeseries",
+      "title": "P95 Latency (5m)",
+      "targets": [
+        {
+          "expr": "service:http_request_p95_latency_5m",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Error Rate (5m)",
+      "targets": [
+        {
+          "expr": "service:http_request_error_rate_5m",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Error Budget Burn (1h)",
+      "targets": [
+        {
+          "expr": "service:error_budget_burn_1h",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 }
+    }
+  ]
+}

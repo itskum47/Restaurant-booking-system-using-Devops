@@ -1,0 +1,83 @@
+{{- if .Values.databaseMigrations.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migration
+  namespace: {{ .Values.global.namespace }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.databaseMigrations.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.databaseMigrations.timeoutSeconds }}
+  template:
+    metadata:
+      labels:
+        app: db-migration
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: {{ .Values.databaseMigrations.image }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: PGHOST
+              value: "{{ .Release.Name }}-postgresql"
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              value: "{{ .Values.postgresql.auth.database }}"
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.postgresSecretName }}
+                  key: POSTGRES_USER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.postgresSecretName }}
+                  key: POSTGRES_PASSWORD
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              flyway \
+                -connectRetries=10 \
+                -cleanDisabled=true \
+                -baselineOnMigrate=true \
+                -outOfOrder=false \
+                -url="jdbc:postgresql://${PGHOST}:${PGPORT}/${PGDATABASE}" \
+                -user="${PGUSER}" \
+                -password="${PGPASSWORD}" \
+                -locations=filesystem:/flyway/sql \
+                validate
+
+              flyway \
+                -connectRetries=10 \
+                -cleanDisabled=true \
+                -baselineOnMigrate=true \
+                -outOfOrder=false \
+                -url="jdbc:postgresql://${PGHOST}:${PGPORT}/${PGDATABASE}" \
+                -user="${PGUSER}" \
+                -password="${PGPASSWORD}" \
+                -locations=filesystem:/flyway/sql \
+                migrate
+          volumeMounts:
+            - name: migration-sql
+              mountPath: /flyway/sql
+      volumes:
+        - name: migration-sql
+          configMap:
+            name: db-migration-sql
+{{- end }}

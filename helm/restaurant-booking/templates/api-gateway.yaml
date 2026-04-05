@@ -7,9 +7,29 @@ metadata:
 data:
   RATE_LIMIT_WINDOW_MS: "{{ .Values.apiGateway.env.RATE_LIMIT_WINDOW_MS }}"
   RATE_LIMIT_MAX_REQUESTS: "{{ .Values.apiGateway.env.RATE_LIMIT_MAX_REQUESTS }}"
+  RATE_LIMIT_GLOBAL_RPS: "{{ .Values.apiGateway.env.RATE_LIMIT_GLOBAL_RPS }}"
+  RATE_LIMIT_USER_RPS: "{{ .Values.apiGateway.env.RATE_LIMIT_USER_RPS }}"
+  RATE_LIMIT_BURST_RPS: "{{ .Values.apiGateway.env.RATE_LIMIT_BURST_RPS }}"
+  RATE_LIMIT_ABUSE_THRESHOLD: "{{ .Values.apiGateway.env.RATE_LIMIT_ABUSE_THRESHOLD }}"
+  RATE_LIMIT_ABUSE_BLOCK_SECONDS: "{{ .Values.apiGateway.env.RATE_LIMIT_ABUSE_BLOCK_SECONDS }}"
+  UPSTREAM_TIMEOUT_MS: "{{ .Values.apiGateway.env.UPSTREAM_TIMEOUT_MS }}"
+  CB_AI_FAILURE_THRESHOLD: "{{ .Values.apiGateway.env.CB_AI_FAILURE_THRESHOLD }}"
+  CB_AI_RECOVERY_MS: "{{ .Values.apiGateway.env.CB_AI_RECOVERY_MS }}"
+  CB_AI_SUCCESS_THRESHOLD: "{{ .Values.apiGateway.env.CB_AI_SUCCESS_THRESHOLD }}"
+  CB_BOOKING_FAILURE_THRESHOLD: "{{ .Values.apiGateway.env.CB_BOOKING_FAILURE_THRESHOLD }}"
+  CB_BOOKING_RECOVERY_MS: "{{ .Values.apiGateway.env.CB_BOOKING_RECOVERY_MS }}"
+  CB_BOOKING_SUCCESS_THRESHOLD: "{{ .Values.apiGateway.env.CB_BOOKING_SUCCESS_THRESHOLD }}"
+  CB_NOTIFICATION_FAILURE_THRESHOLD: "{{ .Values.apiGateway.env.CB_NOTIFICATION_FAILURE_THRESHOLD }}"
+  CB_NOTIFICATION_RECOVERY_MS: "{{ .Values.apiGateway.env.CB_NOTIFICATION_RECOVERY_MS }}"
+  CB_NOTIFICATION_SUCCESS_THRESHOLD: "{{ .Values.apiGateway.env.CB_NOTIFICATION_SUCCESS_THRESHOLD }}"
+  CB_RESTAURANT_FAILURE_THRESHOLD: "{{ .Values.apiGateway.env.CB_RESTAURANT_FAILURE_THRESHOLD }}"
+  CB_RESTAURANT_RECOVERY_MS: "{{ .Values.apiGateway.env.CB_RESTAURANT_RECOVERY_MS }}"
+  CB_RESTAURANT_SUCCESS_THRESHOLD: "{{ .Values.apiGateway.env.CB_RESTAURANT_SUCCESS_THRESHOLD }}"
+  REDIS_URL: "{{ include "restaurant-booking.redisUrl" . }}"
   AI_SERVICE_URL: "http://{{ .Values.aiService.name }}:{{ .Values.aiService.service.port }}"
   RESTAURANT_SERVICE_URL: "http://{{ .Values.restaurantService.name }}:{{ .Values.restaurantService.service.port }}"
   BOOKING_SERVICE_URL: "http://{{ .Values.bookingService.name }}:{{ .Values.bookingService.service.port }}"
+  NOTIFICATION_SERVICE_URL: "http://{{ .Values.notificationService.name }}:{{ .Values.notificationService.service.port }}"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -42,10 +62,18 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 1001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: {{ .Values.apiGateway.name }}
         image: "{{ .Values.apiGateway.image.repository }}:{{ .Values.apiGateway.image.tag }}"
         imagePullPolicy: {{ .Values.apiGateway.image.pullPolicy }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
         ports:
         - containerPort: {{ .Values.apiGateway.service.port }}
           name: http
@@ -70,7 +98,7 @@ spec:
         - name: JWT_SECRET
           valueFrom:
             secretKeyRef:
-              name: restaurant-secrets
+              name: {{ .Values.secrets.appSecretName }}
               key: JWT_SECRET
         - name: API_GATEWAY_PORT
           value: "{{ .Values.apiGateway.service.port }}"

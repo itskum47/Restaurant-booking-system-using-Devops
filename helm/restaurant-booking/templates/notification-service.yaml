@@ -30,10 +30,18 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 1001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: {{ .Values.notificationService.name }}
         image: "{{ .Values.notificationService.image.repository }}:{{ .Values.notificationService.image.tag }}"
         imagePullPolicy: {{ .Values.notificationService.image.pullPolicy }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
         ports:
         - containerPort: {{ .Values.notificationService.service.port }}
           name: http

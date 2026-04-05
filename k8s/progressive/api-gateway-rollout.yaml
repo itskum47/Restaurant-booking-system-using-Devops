@@ -1,0 +1,50 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: api-gateway
+  namespace: restaurant-system-prod
+spec:
+  replicas: 6
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      containers:
+        - name: api-gateway
+          image: ghcr.io/REPLACE_OWNER/restaurant-booking/api-gateway:latest
+          ports:
+            - containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3000
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+  strategy:
+    canary:
+      canaryService: api-gateway-canary
+      stableService: api-gateway-stable
+      trafficRouting:
+        nginx:
+          stableIngress: restaurant-booking-ingress
+      steps:
+        - setWeight: 10
+        - pause:
+            duration: 3m
+        - analysis:
+            templates:
+              - templateName: error-rate-check
+        - setWeight: 30
+        - pause:
+            duration: 5m
+        - setWeight: 60
+        - pause:
+            duration: 5m
+        - setWeight: 100

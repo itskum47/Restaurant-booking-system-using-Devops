@@ -23,8 +23,85 @@ const getMichelinStars = (name, cuisine) => {
   return starMap[name] || cuisineStars[cuisine] || { stars: 1, rating: 4.5, awards: ['Michelin Recommended'] };
 };
 
+function getRestaurantProfile(name) {
+  const n = String(name || '').toLowerCase();
+
+  if (n.includes('karim')) {
+    return {
+      highlights: [
+        { name: 'Mutton Korma', description: 'Slow-cooked old Delhi style mutton curry with whole spices', price: '₹520', tag: "Chef's Signature" },
+        { name: 'Chicken Jahangiri', description: 'Rich Mughlai gravy, smoked chicken, saffron finish', price: '₹490', tag: 'Most Popular' },
+        { name: 'Seekh Kebab', description: 'Minced lamb kebabs, charcoal grilled, mint chutney', price: '₹340', tag: 'Must Try' },
+      ],
+      fullMenu: {
+        starters: [
+          { name: 'Mutton Seekh Kebab', description: 'Charcoal grilled minced mutton skewers', price: '₹340', popular: true },
+          { name: 'Shami Kebab', description: 'Pan-seared spiced mince patties', price: '₹320', popular: false },
+          { name: 'Chicken Malai Tikka', description: 'Cream-marinated boneless chicken from tandoor', price: '₹380', popular: true },
+          { name: 'Khameeri Roti Bites', description: 'Traditional fermented bread with chutney trio', price: '₹180', popular: false },
+        ],
+        mains: [
+          { name: 'Mutton Korma', description: 'Signature slow-cooked Mughlai mutton curry', price: '₹520', popular: true },
+          { name: 'Chicken Jahangiri', description: 'Royal style chicken curry, saffron and cream', price: '₹490', popular: true },
+          { name: 'Nihari', description: 'Overnight braised mutton shank, spice-infused gravy', price: '₹560', popular: false },
+          { name: 'Mutton Biryani', description: 'Fragrant basmati layered with tender mutton', price: '₹620', popular: true },
+        ],
+        desserts: [
+          { name: 'Shahi Tukda', description: 'Fried bread in rabri, nuts and saffron', price: '₹220', popular: true },
+          { name: 'Kheer', description: 'Slow-cooked rice pudding, green cardamom', price: '₹180', popular: false },
+          { name: 'Phirni', description: 'Ground rice pudding set in earthen pot', price: '₹190', popular: false },
+        ],
+        drinks: [
+          { name: 'Masala Chaas', description: 'Spiced buttermilk with roasted cumin', price: '₹110', popular: true },
+          { name: 'Kesar Lassi', description: 'Sweet yogurt drink with saffron and pistachio', price: '₹160', popular: false },
+          { name: 'Nimbu Pani', description: 'Fresh lime, mint, black salt cooler', price: '₹100', popular: false },
+        ],
+      },
+    };
+  }
+
+  if (n.includes('khau galli')) {
+    return {
+      highlights: [
+        { name: 'Pani Puri', description: 'Crispy golgappa shells, spicy mint water, sweet chutney', price: '₹120', tag: "Chef's Signature" },
+        { name: 'Vada Pav', description: 'Mumbai potato fritter slider, garlic chutney', price: '₹90', tag: 'Most Popular' },
+        { name: 'Pav Bhaji', description: 'Buttery toasted pav with spiced mashed vegetables', price: '₹180', tag: 'Must Try' },
+      ],
+      fullMenu: {
+        starters: [
+          { name: 'Pani Puri', description: 'Classic street-style golgappa with 3 flavored waters', price: '₹120', popular: true },
+          { name: 'Sev Puri', description: 'Crisp puri, potato, chutneys, nylon sev', price: '₹130', popular: true },
+          { name: 'Dahi Papdi Chaat', description: 'Papdi, yogurt, tamarind, mint, pomegranate', price: '₹150', popular: false },
+          { name: 'Ragda Pattice', description: 'Potato patties, white pea curry, chutney trio', price: '₹170', popular: false },
+        ],
+        mains: [
+          { name: 'Pav Bhaji', description: 'Street-style mashed vegetable curry and buttered buns', price: '₹180', popular: true },
+          { name: 'Vada Pav', description: 'Spiced potato fritter in bun with dry garlic chutney', price: '₹90', popular: true },
+          { name: 'Misal Pav', description: 'Sprouted moth beans curry, farsan, pav', price: '₹160', popular: false },
+          { name: 'Tawa Pulao', description: 'Spicy rice tossed on tawa with bhaji masala', price: '₹210', popular: false },
+        ],
+        desserts: [
+          { name: 'Kulfi Falooda', description: 'Traditional kulfi with vermicelli and rose syrup', price: '₹190', popular: true },
+          { name: 'Rabdi Jalebi', description: 'Hot jalebi with chilled rabdi', price: '₹220', popular: false },
+          { name: 'Gajar Halwa', description: 'Slow-cooked carrot pudding, khoya and nuts', price: '₹180', popular: false },
+        ],
+        drinks: [
+          { name: 'Cutting Chai', description: 'Mumbai-style strong ginger tea', price: '₹40', popular: true },
+          { name: 'Kala Khatta Soda', description: 'Street classic black plum soda', price: '₹90', popular: false },
+          { name: 'Fresh Lime Soda', description: 'Sweet-salted lime and sparkling water', price: '₹120', popular: false },
+        ],
+      },
+    };
+  }
+
+  return null;
+}
+
 // Menu highlights by cuisine
-const getMenuHighlights = (cuisine) => {
+const getMenuHighlights = (name, cuisine, address) => {
+  const byRestaurant = getRestaurantProfile(name);
+  if (byRestaurant?.highlights) return byRestaurant.highlights;
+
   const menus = {
     'Italian': [
       { name: 'Cacio e Pepe', description: 'Hand-rolled tonnarelli, black pepper, aged Pecorino', price: '$28', tag: "Chef's Signature" },
@@ -46,8 +123,32 @@ const getMenuHighlights = (cuisine) => {
       { name: 'Veal Parmesan', description: 'Breaded veal cutlet, house marinara, aged mozzarella', price: '$48', tag: 'Most Popular' },
       { name: 'Cannoli', description: 'Crispy shell, ricotta cream, pistachios', price: '$14', tag: 'Must Try' },
     ],
+    'Indian': [
+      { name: 'Butter Chicken', description: 'Creamy tomato gravy, smoked chicken tikka, dried fenugreek', price: '₹480', tag: "Chef's Signature" },
+      { name: 'Dal Makhani', description: 'Slow-cooked black lentils, churned butter, fresh cream', price: '₹350', tag: 'Most Popular' },
+      { name: 'Garlic Naan', description: 'Charcoal tandoor baked bread, fresh garlic and coriander', price: '₹80', tag: 'Must Try' },
+    ],
   };
-  return menus[cuisine] || menus['Italian'];
+
+  const c = String(cuisine || '').toLowerCase();
+  const addr = String(address || '').toLowerCase();
+  
+  let matched = menus['Italian'];
+  if (c.includes('japan') || c.includes('sushi')) matched = menus['Japanese'];
+  else if (c.includes('french')) matched = menus['French'];
+  else if (c.includes('india') || c.includes('mughlai') || c.includes('punjabi') || c.includes('south') || addr.includes('india') || addr.includes('delhi') || addr.includes('mumbai')) matched = menus['Indian'];
+  
+  // Also adjust currency depending on region
+  if (addr.includes('india') || addr.includes('delhi') || addr.includes('mumbai')) {
+     matched = matched.map(m => {
+       if (m.price.includes('$')) {
+         const numericValue = parseInt(m.price.replace('$', '')) || 0;
+         return { ...m, price: `₹${numericValue * 80}` }; // Rough fake conversion just in case fallback happens
+       }
+       return m;
+     });
+  }
+  return matched;
 };
 
 // Michelin star SVG component
@@ -100,7 +201,7 @@ export default function RestaurantDetailNew() {
   };
 
   const michelin = getMichelinStars(restaurant.name, restaurant.cuisine);
-  const menuItems = getMenuHighlights(restaurant.cuisine);
+  const menuItems = getMenuHighlights(restaurant.name, restaurant.cuisine, restaurant.address || restaurant.location);
 
   // ─── TAB STATE ──────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState('overview');
@@ -116,30 +217,68 @@ export default function RestaurantDetailNew() {
   // ─── TAB DATA ───────────────────────────────────────────────────────────
 
   // Full menu by category
-  const fullMenu = {
-    starters: [
-      { name: 'Black Cod Miso', description: 'Nobu signature — miso-marinated black cod, broiled to perfection', price: '$38', popular: true },
-      { name: 'Toro Tartare', description: 'Bluefin tuna belly, caviar, crispy rice, wasabi soy', price: '$52', popular: false },
-      { name: 'Yellowtail Jalapeño', description: 'Sliced yellowtail, jalapeño, yuzu soy, crispy garlic', price: '$28', popular: true },
-      { name: 'Rock Shrimp Tempura', description: 'Crispy shrimp, creamy spicy sauce, ponzu', price: '$32', popular: false },
-    ],
-    mains: [
-      { name: 'Wagyu Skewer', description: 'A5 Japanese Wagyu, teriyaki glaze, micro herbs', price: '$85', popular: true },
-      { name: 'Lobster with Truffle', description: 'Maine lobster, black truffle butter, soba noodles', price: '$78', popular: false },
-      { name: 'Duck Breast Anticucho', description: 'Peruvian-Japanese spiced duck, aji amarillo, quinoa', price: '$56', popular: false },
-      { name: 'Omakase Set', description: '12-course chef tasting, seasonal ingredients, sake pairing optional', price: '$195', popular: true },
-    ],
-    desserts: [
-      { name: 'Yuzu Cheesecake', description: 'Japanese yuzu curd, graham cracker, miso caramel', price: '$18', popular: true },
-      { name: 'Bento Box Dessert', description: 'Chocolate lava cake, green tea ice cream, mochi', price: '$22', popular: false },
-      { name: 'Sake Ice Cream', description: 'House-churned junmai sake ice cream, sesame brittle', price: '$16', popular: false },
-    ],
-    drinks: [
-      { name: 'Nobu Sake Flight', description: '3 premium sakes, tasting notes included', price: '$45', popular: true },
-      { name: 'Yuzu Margarita', description: 'Patron silver, yuzu juice, triple sec, salted rim', price: '$22', popular: false },
-      { name: 'Japanese Whisky Highball', description: 'Suntory Toki, sparkling water, lemon twist', price: '$24', popular: false },
-    ],
+  const getFullMenu = (name, cuisine, address) => {
+    const byRestaurant = getRestaurantProfile(name);
+    if (byRestaurant?.fullMenu) return byRestaurant.fullMenu;
+
+    const c = String(cuisine || '').toLowerCase();
+    const addr = String(address || '').toLowerCase();
+    const isIndia = c.includes('india') || c.includes('mughlai') || c.includes('punjabi') || c.includes('south') || addr.includes('india') || addr.includes('delhi') || addr.includes('mumbai');
+
+    if (isIndia) {
+      return {
+        starters: [
+          { name: 'Samosa Chaat', description: 'Crispy pastry, spiced potatoes, chutneys, sweet yogurt', price: '₹220', popular: true },
+          { name: 'Paneer Tikka', description: 'Tandoori cottage cheese, yogurt, carom seeds', price: '₹340', popular: false },
+          { name: 'Chicken 65', description: 'Spicy, deep-fried chicken bites, curry leaves', price: '₹380', popular: true },
+          { name: 'Hara Bhara Kebab', description: 'Spinach and pea cutlets, mint chutney', price: '₹280', popular: false },
+        ],
+        mains: [
+          { name: 'Butter Chicken', description: 'Creamy tomato gravy, smoked chicken tikka, dried fenugreek', price: '₹480', popular: true },
+          { name: 'Mutton Biryani', description: 'Slow-cooked fragrant rice, tender goat meat, saffron', price: '₹650', popular: true },
+          { name: 'Palak Paneer', description: 'Fresh spinach puree, cottage cheese cubes, garlic temper', price: '₹420', popular: false },
+          { name: 'Dal Makhani', description: 'Slow-cooked black lentils, churned butter, fresh cream', price: '₹350', popular: true },
+        ],
+        desserts: [
+          { name: 'Gulab Jamun', description: 'Milk solids dumplings, cardamom sugar syrup, pistachios', price: '₹180', popular: true },
+          { name: 'Rasmalai', description: 'Soft paneer discs, saffron milk, almonds', price: '₹220', popular: false },
+          { name: 'Kulfi Falooda', description: 'Traditional Indian ice cream, sweet noodles', price: '₹240', popular: false },
+        ],
+        drinks: [
+          { name: 'Mango Lassi', description: 'Sweet yogurt drink, alphonso mango puree', price: '₹150', popular: true },
+          { name: 'Masala Chai', description: 'Spiced Indian tea, ginger, cardamom', price: '₹90', popular: false },
+          { name: 'Fresh Lime Soda', description: 'Sparkling water, fresh lime, roasted cumin, black salt', price: '₹120', popular: false },
+        ]
+      };
+    }
+
+    return {
+      starters: [
+        { name: 'Black Cod Miso', description: 'Nobu signature — miso-marinated black cod, broiled to perfection', price: '$38', popular: true },
+        { name: 'Toro Tartare', description: 'Bluefin tuna belly, caviar, crispy rice, wasabi soy', price: '$52', popular: false },
+        { name: 'Yellowtail Jalapeño', description: 'Sliced yellowtail, jalapeño, yuzu soy, crispy garlic', price: '$28', popular: true },
+        { name: 'Rock Shrimp Tempura', description: 'Crispy shrimp, creamy spicy sauce, ponzu', price: '$32', popular: false },
+      ],
+      mains: [
+        { name: 'Wagyu Skewer', description: 'A5 Japanese Wagyu, teriyaki glaze, micro herbs', price: '$85', popular: true },
+        { name: 'Lobster with Truffle', description: 'Maine lobster, black truffle butter, soba noodles', price: '$78', popular: false },
+        { name: 'Duck Breast Anticucho', description: 'Peruvian-Japanese spiced duck, aji amarillo, quinoa', price: '$56', popular: false },
+        { name: 'Omakase Set', description: '12-course chef tasting, seasonal ingredients, sake pairing optional', price: '$195', popular: true },
+      ],
+      desserts: [
+        { name: 'Yuzu Cheesecake', description: 'Japanese yuzu curd, graham cracker, miso caramel', price: '$18', popular: true },
+        { name: 'Bento Box Dessert', description: 'Chocolate lava cake, green tea ice cream, mochi', price: '$22', popular: false },
+        { name: 'Sake Ice Cream', description: 'House-churned junmai sake ice cream, sesame brittle', price: '$16', popular: false },
+      ],
+      drinks: [
+        { name: 'Nobu Sake Flight', description: '3 premium sakes, tasting notes included', price: '$45', popular: true },
+        { name: 'Yuzu Margarita', description: 'Patron silver, yuzu juice, triple sec, salted rim', price: '$22', popular: false },
+        { name: 'Japanese Whisky Highball', description: 'Suntory Toki, sparkling water, lemon twist', price: '$24', popular: false },
+      ],
+    };
   };
+
+  const fullMenu = getFullMenu(restaurant.name, restaurant.cuisine, restaurant.address || restaurant.location);
 
   // Photo gallery
   const photos = [
@@ -474,7 +613,7 @@ export default function RestaurantDetailNew() {
             <span>{restaurant.cuisine}</span>
             <span>·</span>
             <span style={{ color: '#C9A84C' }}>
-              {'●'.repeat(Math.min(4, (restaurant.price_range?.length || 3)))}{'○'.repeat(Math.max(0, 4 - (restaurant.price_range?.length || 3)))}
+              {(restaurant.location && restaurant.location.toLowerCase().includes('india') ? '₹' : '$').repeat(Math.min(4, (restaurant.price_range?.length || 3)))}{'○'.repeat(Math.max(0, 4 - (restaurant.price_range?.length || 3)))}
             </span>
             <span>·</span>
             <span>📍 {restaurant.location || '2.4 mi away'}</span>

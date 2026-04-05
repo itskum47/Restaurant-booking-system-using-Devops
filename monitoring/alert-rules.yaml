@@ -197,3 +197,75 @@ spec:
           annotations:
             summary: "No active bookings during business hours"
             description: "There are no active bookings for 30 minutes during business hours. This may indicate a service issue or low traffic."
+
+    - name: slo-recording-rules
+      interval: 30s
+      rules:
+        - record: service:http_request_success_rate_5m
+          expr: |
+            1 - (
+              sum(rate(http_requests_total{status=~"5..", namespace="restaurant-system"}[5m])) by (service)
+              /
+              sum(rate(http_requests_total{namespace="restaurant-system"}[5m])) by (service)
+            )
+
+        - record: service:http_request_p95_latency_5m
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(http_request_duration_seconds_bucket{namespace="restaurant-system"}[5m])) by (service, le)
+            )
+
+        - record: service:http_request_error_rate_5m
+          expr: |
+            (
+              sum(rate(http_requests_total{status=~"5..", namespace="restaurant-system"}[5m])) by (service)
+              /
+              sum(rate(http_requests_total{namespace="restaurant-system"}[5m])) by (service)
+            )
+
+        - record: service:error_budget_burn_1h
+          expr: |
+            service:http_request_error_rate_5m / 0.001
+
+    - name: slo-alerts
+      interval: 30s
+      rules:
+        - alert: SLOAvailabilityBreach
+          expr: service:http_request_success_rate_5m < 0.999
+          for: 15m
+          labels:
+            severity: critical
+            component: slo
+          annotations:
+            summary: "Availability SLO breach for {{ $labels.service }}"
+            description: "Availability dropped below 99.9% for 15m."
+
+        - alert: SLOLatencyBreach
+          expr: service:http_request_p95_latency_5m > 1.0
+          for: 15m
+          labels:
+            severity: warning
+            component: slo
+          annotations:
+            summary: "Latency SLO breach for {{ $labels.service }}"
+            description: "P95 latency exceeded 1s for 15m."
+
+        - alert: SLOErrorRateBreach
+          expr: service:http_request_error_rate_5m > 0.001
+          for: 10m
+          labels:
+            severity: critical
+            component: slo
+          annotations:
+            summary: "Error-rate SLO breach for {{ $labels.service }}"
+            description: "5xx error rate exceeded 0.1% for 10m."
+
+        - alert: SLOErrorBudgetFastBurn
+          expr: service:error_budget_burn_1h > 14
+          for: 10m
+          labels:
+            severity: critical
+            component: slo
+          annotations:
+            summary: "Error budget fast burn for {{ $labels.service }}"
+            description: "Service is burning error budget at >14x budgeted rate."
