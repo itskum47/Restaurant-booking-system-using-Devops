@@ -21,7 +21,7 @@
     "morgan": "^1.10.0",
     "pg": "^8.13.1",
     "prom-client": "^15.1.0",
-    "rate-limiter-flexible": "^5.0.5"
+    "rate-limiter-flexible": "^11.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
